@@ -5,6 +5,7 @@ import useProject from "@/hooks/use-project";
 import { ExternalLink, Github } from "lucide-react";
 import Link from "next/link";
 import CommitLog from "./commit-log";
+import { StickyBanner } from "@/components/ui/sticky-banner";
 
 const Dashboard = () => {
   const { project } = useProject();
@@ -33,13 +34,13 @@ const Dashboard = () => {
         <div className="h-4"></div>
 
         <div className="flex items-center gap-4">
-          - TeamMembers - Invite button inside team members dropdown - Archive
-          button for particular github project
+          {/* - TeamMembers - Invite button inside team members dropdown - Archive
+          button for particular github project */}
         </div>
       </div>
       <div className="mt-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
-          AskQuestionCard Meeting Card
+          {/* AskQuestionCard Meeting Card */}
         </div>
       </div>
       <div className="mt-8"></div>
