@@ -6,11 +6,12 @@
  * TL;DR - This is where all the tRPC server stuff is created and plugged in. The pieces you will
  * need to use are documented accordingly near the end.
  */
-import { initTRPC } from "@trpc/server";
+import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
 
 import { db } from "@/server/db";
+import { auth } from "@clerk/nextjs/server";
 
 /**
  * 1. CONTEXT
@@ -73,12 +74,33 @@ export const createCallerFactory = t.createCallerFactory;
  */
 export const createTRPCRouter = t.router;
 
+// this function is going to be a middleware to tell the trpc router that whether user is authenticated or not
+
+const isAuthenticated = t.middleware(async ({ ctx, next }) => {
+  const user = await auth();
+
+  if (!user) {
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: "You must be logged in to access this resource",
+    });
+  }
+
+  return next({
+    ctx: {
+      ...ctx,
+      user,
+    },
+  });
+});
+
 /**
  * Middleware for timing procedure execution and adding an artificial delay in development.
  *
  * You can remove this if you don't like it, but it can help catch unwanted waterfalls by simulating
  * network latency that would occur in production but not in local development.
  */
+
 const timingMiddleware = t.middleware(async ({ next, path }) => {
   const start = Date.now();
 
@@ -104,3 +126,5 @@ const timingMiddleware = t.middleware(async ({ next, path }) => {
  * are logged in.
  */
 export const publicProcedure = t.procedure.use(timingMiddleware);
+
+export const protectedProcedure = t.procedure.use(isAuthenticated);

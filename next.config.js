@@ -1,10 +1,17 @@
 /**
- * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially useful
- * for Docker builds.
+ * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation.
  */
 import "./src/env.js";
 
 /** @type {import("next").NextConfig} */
-const config = {};
+const config = {
+  images: {
+    remotePatterns: [
+      {
+        hostname: "avatars.githubusercontent.com",
+      },
+    ],
+  },
+};
 
 export default config;
