@@ -15,7 +15,7 @@ const SidebarLayout = ({ children }: Props) => {
       <main className="mr-2 w-full">
         <div className="border-sidebar-border bg-sidebae mt-2 flex items-center gap-2 rounded-sm border p-2 px-4 shadow">
           <StickyBanner className="bg-black rounded-md">
-            <p className="mx-0 max-w-[90%] text-white drop-shadow-md">
+            <p className="mx-0 max-w-[90%] text-white drop-shadow-md text-sm">
               Currently on CodeSense AI v1.0.—{" "}
               <span className="cursor-pointer transition duration-200 hover:underline">
                 New tools dropping soon
@@ -39,3 +39,7 @@ const SidebarLayout = ({ children }: Props) => {
 };
 
 export default SidebarLayout;
+
+// route segment is purely a semantic way of seperating folders - we put our protected routes here
+
+// so we need to be authenticated to access these protected routes - this power we got from layout files in nextjs app router

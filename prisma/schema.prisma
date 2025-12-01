@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,6 +6,8 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+// Each model is mapped to a table in our Postgres database - Neon
 
 model User {
   id        String   @id @default(cuid())
@@ -20,7 +19,11 @@ model User {
   lastName  String?
 
   emailAddress String @unique
-  credits      Int    @default(150)
+  credits      Int    @default(150) 
+  
+  // credits is like for how many credits we want to give them to use
+
+  // one credit means one file that we helps us you to processed out - 150 credits is the free tier that we allows user to have when creating project
 
   userToProjects UserToProject[]
 }
@@ -39,7 +42,7 @@ model Project {
   commits        Commit[]
 }
 
-// Bridging Model for creating relationships between User To Project means A project have multiple users and A user can be a part of multiple projects
+// Bridging Model for creating relationships between User To Project means A project have multiple users and A user can be a part of multiple projects - Many to Many relationship
 
 model UserToProject {
   id        String   @id @default(cuid())
@@ -55,6 +58,8 @@ model UserToProject {
 
   @@unique([userId, projectId]) // if we're a user we can only have a pairing of one unique userID , projectID : this the compound key that we are just creating
 }
+
+// model to store commits : a project have list of commits which is an array of commits
 
 model Commit {
   id        String   @id @default(cuid())

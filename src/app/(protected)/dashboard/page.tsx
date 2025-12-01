@@ -5,7 +5,6 @@ import useProject from "@/hooks/use-project";
 import { ExternalLink, Github } from "lucide-react";
 import Link from "next/link";
 import CommitLog from "./commit-log";
-import { StickyBanner } from "@/components/ui/sticky-banner";
 
 const Dashboard = () => {
   const { project } = useProject();
@@ -38,9 +37,11 @@ const Dashboard = () => {
           button for particular github project */}
         </div>
       </div>
+
       <div className="mt-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
-          {/* AskQuestionCard Meeting Card */}
+          {/* AskQuestionCard 
+          Meeting Card */}
         </div>
       </div>
       <div className="mt-8"></div>
@@ -50,3 +51,7 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
+// now we create relations within our database to link projects and questions with this user
+
+// this allows us to actually to be more flexible with our realtional data modelling

@@ -6,6 +6,7 @@
  * TL;DR - This is where all the tRPC server stuff is created and plugged in. The pieces you will
  * need to use are documented accordingly near the end.
  */
+
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
@@ -89,7 +90,7 @@ const isAuthenticated = t.middleware(async ({ ctx, next }) => {
   return next({
     ctx: {
       ...ctx,
-      user,
+      user, // passing authenticated user session data from clerk
     },
   });
 });
@@ -126,5 +127,15 @@ const timingMiddleware = t.middleware(async ({ next, path }) => {
  * are logged in.
  */
 export const publicProcedure = t.procedure.use(timingMiddleware);
+
+
+/**
+ * Protected (authenticated) procedure
+
+ * This is the base piece we use to build new queries and mutations on your tRPC API. 
+ 
+ * It guarantee that a user querying is authorized, but we can access user session data
+
+ */
 
 export const protectedProcedure = t.procedure.use(isAuthenticated);

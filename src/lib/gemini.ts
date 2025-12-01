@@ -3,12 +3,16 @@ import { generateText } from "ai";
 
 const apikey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || "";
 
+// now we use gemini AI for summarising our commit where we pass diff for particular commit hash 
+
+// and further we also including for kind of vector embedding that we'll be using for retrieval augmented generation model
+
 export const aiSummariseCommit = async (diff: string) => {
 
   const { text } = await generateText({
     model: google("gemini-2.5-flash"),
     prompt: `
-You are an expert programmer, and gou are trying to summarize a git diff.
+You are an expert programmer, and you are trying to summarize a git diff.
 
 Reminders about the git diff format:
 

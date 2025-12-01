@@ -17,15 +17,25 @@ type FormInput = {
 };
 
 const CreateProject = () => {
+  // The useUser() hook provides access to the current user's User object, which contains all the data for a single user in your application
+
   const { user } = useUser();
 
+  // Here we react-hook-form for managing forms in our app : because of Performant, flexible and extensible forms with easy-to-use validation.
+
   const { register, handleSubmit, reset } = useForm<FormInput>();
+
+  // this gives mutation function to call my backend function
 
   const createproject = api.project.createProject.useMutation();
 
   const refetch = useRefetch();
 
   function onSubmit(data: FormInput) {
+    // console.log(JSON.stringfy(data,null,2));
+
+    // this data refers to input we get from our form : we get here type safed object with all the input , we pass this data to backend and create the project
+
     createproject.mutate(
       {
         githubUrl: data.repoUrl,
@@ -117,8 +127,8 @@ export default CreateProject;
 
 // now we are going to create trpc route handler to create the project
 
-// Github token is used to help to authenticate user on the behalf of them , in case they are trying to look for private repository
+// Github token is used to help to authenticate user on the behalf of them , in case they are trying to look for private repository access
 
 // then by check credits function is going into the repository , it's going to look at all the files that we have in our codebase and return the count of how many files are there in total
 
-// for 150 files - this is going to cost 149 credits to display the message here - but for now we are creating a row of new project within database , we actual care about credits later at end of project
+// for ex: 150 files - this is going to cost 149 credits to display the message here - but for now we are creating a row of new project within database , we actual care about credits later at end of project

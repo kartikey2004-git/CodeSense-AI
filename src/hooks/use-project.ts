@@ -1,11 +1,23 @@
 import { api } from "@/trpc/react";
-import React, { useState } from "react";
+import React from "react";
 import { useLocalStorage } from "usehooks-ts";
 
 const useProject = () => {
+  // here we are fetching all the projects for the logged in user
+
   const { data: projects } = api.project.getProjects.useQuery();
 
+  // we are using useLocalStorage hook to keep the projectId in local storage
+
+  //  because I want to track which project I'm currently looking at and projectId should persist even after page refresh
+
+  // usestate is not peristent and data store in memory will be lost after page refresh but local storage is persistent
+
+  // Custom hook that uses the localStorage API to persist state across page reloads.
+
   const [projectId, setProjectId] = useLocalStorage("codesense-projectId", "");
+
+  // finding the current project based on the projectId from local storage
 
   const project = projects?.find((project) => project.id === projectId);
 
@@ -13,12 +25,12 @@ const useProject = () => {
     projects,
     project,
     projectId,
-    setProjectId
+    setProjectId,
   };
 };
 
 export default useProject;
 
-// we also want to keep the track of which current project I'm looking right now
+// this hook provides that we can access all projects for the logged in user and also manage the currently selected project using local storage
 
-// so in our app , we can see that , if we click any of these project , I'm selecting it , so we need to keep a local storage state key to make sure that when we refresh the page we can see that my selected project id is always intact
+// this is cleaner architecture of dealing with state management between server and client side

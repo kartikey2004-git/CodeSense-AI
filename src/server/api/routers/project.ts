@@ -1,9 +1,18 @@
 import { z } from "zod";
-
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 import { pollCommits } from "@/lib/github";
 
+// create new routers and sub-routers in your tRPC API.
+
 export const projectRouter = createTRPCRouter({
+  /*
+
+  - first zod schema to validate input data coming from frontend and then define a mutation to create a new project in our database
+
+  - After creating the project, we want to poll the commits from the GitHub repository associated with this project.
+
+  */
+
   createProject: protectedProcedure
     .input(
       z.object({
@@ -28,6 +37,14 @@ export const projectRouter = createTRPCRouter({
       await pollCommits(project.id);
       return project;
     }),
+
+  /*
+  
+  - Get the list of projects associated with the logged-in user and that are not deleted 
+
+  - also every time we fetch commits for a specific project , we are going to check there is new commit but after trigger polling of commits from GitHub for that project
+
+  */
 
   getProjects: protectedProcedure.query(async ({ ctx }) => {
     return await ctx.db.project.findMany({

@@ -9,7 +9,12 @@ import Link from "next/link";
 import React from "react";
 
 const CommitLog = () => {
+  // Get projectId and project details using custom hook
+
   const { projectId, project } = useProject();
+
+  // Fetch commits for the specific project using tRPC query
+
   const { data: commits } = api.project.getCommits.useQuery({ projectId });
 
   return (

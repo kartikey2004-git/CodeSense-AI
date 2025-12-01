@@ -11,3 +11,7 @@ const useRefetch = () => {
 }
 
 export default useRefetch
+
+// this hook to invalidate all trpc queries so that it automatically refetches all queries and make sure data is always updated
+
+// when we call this function , it's going to refetch all active queries , so data always be updated

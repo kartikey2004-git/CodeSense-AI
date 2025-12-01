@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -50,8 +49,14 @@ const items = [
 ];
 
 export function AppSideBar() {
+  // A Client Component hook that lets you read the current URL's pathname.
+
   const pathname = usePathname();
+
+  // The useSidebar hook is used to control the sidebar
+
   const { open } = useSidebar();
+
   const { projects, projectId, setProjectId } = useProject();
 
   return (
@@ -125,8 +130,11 @@ export function AppSideBar() {
               {open && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
-                    <Link href="/create">
-                      <Plus />
+                    <Link
+                      href="/create"
+                      className="flex items-center gap-2  shadow-md border border-white/30 bg-white px-3 py-2 text-black transition hover:bg-gray-100"
+                    >
+                      <Plus className="h-4 w-4" />
                       <span>Create Project</span>
                     </Link>
                   </SidebarMenuButton>
@@ -139,3 +147,6 @@ export function AppSideBar() {
     </Sidebar>
   );
 }
+
+// But when we creating a project it does not refetches the projects from database - issue
+
