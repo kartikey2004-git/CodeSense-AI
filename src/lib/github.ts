@@ -17,6 +17,8 @@ type Response = {
   commitDate: Date;
 };
 
+// get the list of commits related data from github repo using octokit in type Response
+
 export const getCommitHashes = async (
   githubUrl: string,
 ): Promise<Response[]> => {
@@ -43,9 +45,9 @@ export const getCommitHashes = async (
       new Date(a.commit.author.date).getTime(),
   ) as any[];
 
-  // return top 10 latest commits for particular githubUrl
+  // return top 3 latest commits for particular githubUrl
 
-  return sortedCommits.slice(0, 10).map((commit: any) => ({
+  return sortedCommits.slice(0, 3).map((commit: any) => ({
     commitHash: commit.sha as string,
     commitMessage: commit.commit?.message ?? "",
     commitAuthorName: commit.commit?.author?.name ?? "",
@@ -57,7 +59,7 @@ export const getCommitHashes = async (
 export const pollCommits = async (projectId: string) => {
   // fetch githubUrl for particular project from database
 
-  const { project, githubUrl } = await fetchProjectGithubUrl(projectId);
+  const { githubUrl } = await fetchProjectGithubUrl(projectId);
 
   // get the list of last 10 latest commits from particular githubUrl
 
@@ -86,13 +88,13 @@ export const pollCommits = async (projectId: string) => {
 
   const summaries = summaryResponses.map((response) => {
     if (response.status === "fulfilled") {
-      return response.value;
+      return response.value as string;
     }
     return "";
   });
 
   // finally we create many commits in our database with the summaries we got from ai
-  
+
   const commits = await db.commit.createMany({
     data: summaries.map((summary, index) => {
       console.log(`processing commit ${index}`);
@@ -132,13 +134,21 @@ async function fetchProjectGithubUrl(projectId: string) {
 // get the diff , then pass the diff into ai and then summarise with help of AI sdk - generative AI
 
 async function summariseCommit(githubUrl: string, commitHash: string) {
-  const { data } = await axios.get(`${githubUrl}/commit/${commitHash}.diff`, {
-    headers: {
-      Accept: "application/vnd.github.v3.diff",
+  const { data: diff } = await axios.get(
+    `${githubUrl}/commit/${commitHash}.diff`,
+    {
+      headers: {
+        Accept: "application/vnd.github.v3.diff",
+      },
+      responseType: "text",
     },
-  });
+  );
 
-  return (await aiSummariseCommit(data)) || "";
+  const summarycommit = await aiSummariseCommit(diff);
+
+  if (!summarycommit) return "";
+
+  return summarycommit;
 }
 
 async function filterUnprocessedCommits(

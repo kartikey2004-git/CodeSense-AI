@@ -3,11 +3,9 @@ import "@/styles/globals.css";
 import { type Metadata } from "next";
 import { Geist } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
-
+import type { ReactNode } from "react";
 import { TRPCReactProvider } from "@/trpc/react";
 import { Toaster } from "@/components/ui/sonner";
-import { auth } from "@clerk/nextjs/server";
-import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
   title: "CodeSense AI",
@@ -24,21 +22,12 @@ interface RootLayoutProps {
   children: ReactNode;
 }
 
-export default async function RootLayout({ children }: RootLayoutProps) {
-  const { sessionId } = await auth();
-
-  const isSignedIn = Boolean(sessionId);
-
+export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <ClerkProvider>
-      <html lang="en" className={`${geist.variable}`}>
+      <html lang="en" className={geist.variable}>
         <body>
-          {isSignedIn && (
-            <div>
-              {/* Authenticated layout */}
-              <TRPCReactProvider>{children}</TRPCReactProvider>
-            </div>
-          )}
+          <TRPCReactProvider>{children}</TRPCReactProvider>
 
           <Toaster />
         </body>
@@ -46,7 +35,3 @@ export default async function RootLayout({ children }: RootLayoutProps) {
     </ClerkProvider>
   );
 }
-
-// The ClerkProvidercomponent provides Clerk's authentication context to your app.
-
-// It's recommended to wrap your entire app at the entry point with ClerkProvider to make authentication globally accessible.

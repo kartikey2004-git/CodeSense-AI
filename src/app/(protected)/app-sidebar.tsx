@@ -1,5 +1,7 @@
 "use client";
 
+import CreateProjectModal from "@/components/subcomponents/CreateProjectModal";
+import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -24,6 +26,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 const items = [
   {
@@ -49,6 +52,8 @@ const items = [
 ];
 
 export function AppSideBar() {
+  const [isOpen, setIsOpen] = useState(false);
+
   // A Client Component hook that lets you read the current URL's pathname.
 
   const pathname = usePathname();
@@ -63,7 +68,6 @@ export function AppSideBar() {
     <Sidebar collapsible="icon" variant="floating">
       <SidebarHeader>
         <div className="flex items-center">
-          <Image src="logo.svg" alt="logo" height={60} width={60} />
           {open && (
             <h1 className="text-primary mt-2 text-xl font-semibold">
               CodeSense AI
@@ -130,16 +134,21 @@ export function AppSideBar() {
               {open && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
-                    <Link
-                      href="/create"
-                      className="flex items-center gap-2  shadow-md border border-white/30 bg-white px-3 py-2 text-black transition hover:bg-gray-100"
+                    <Button
+                      className="flex items-center gap-2 border border-white/30 bg-white px-3 py-2 text-black shadow-md transition hover:bg-gray-100"
+                      onClick={() => setIsOpen(true)}
                     >
                       <Plus className="h-4 w-4" />
                       <span>Create Project</span>
-                    </Link>
+                    </Button>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
+
+              <CreateProjectModal
+                isOpen={isOpen}
+                onClose={() => setIsOpen(false)}
+              />
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -149,4 +158,3 @@ export function AppSideBar() {
 }
 
 // But when we creating a project it does not refetches the projects from database - issue
-

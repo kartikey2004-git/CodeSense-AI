@@ -1,13 +1,48 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import useProject from "@/hooks/use-project";
 import { ExternalLink, Github } from "lucide-react";
 import Link from "next/link";
 import CommitLog from "./commit-log";
+import { Button } from "@/components/ui/button";
+import CreateProjectModal from "@/components/subcomponents/CreateProjectModal";
+import AskQuestionCard from "./ask-question-card";
 
 const Dashboard = () => {
   const { project } = useProject();
+
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (!project) {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center">
+        <div className="space-y-4 text-center">
+          <h2 className="text-foreground text-2xl font-semibold tracking-tight">
+            No projects yet
+          </h2>
+
+          <p className="text-muted-foreground mx-auto max-w-sm text-sm">
+            You haven’t created any projects yet. Start by creating your first
+            project to unlock insights and analysis.
+          </p>
+
+          <Button
+            className="bg-primary text-primary-foreground inline-flex items-center justify-center rounded-sm px-5 py-2.5 text-sm font-medium transition hover:opacity-90"
+            onClick={() => setIsOpen(true)}
+          >
+            Create Project
+          </Button>
+
+          <CreateProjectModal
+            isOpen={isOpen}
+            onClose={() => setIsOpen(false)}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-y-4">
@@ -39,9 +74,9 @@ const Dashboard = () => {
       </div>
 
       <div className="mt-4">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
-          {/* AskQuestionCard 
-          Meeting Card */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <AskQuestionCard />
+          {/* Meeting Card */}
         </div>
       </div>
       <div className="mt-8"></div>

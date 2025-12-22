@@ -1,8 +1,7 @@
 import React from "react";
-import Features from "@/components/subComponents/Features";
-import Hero from "@/components/subComponents/Hero";
-import SeeInAction from "@/components/subComponents/SeeInAction";
-import Testimonials from "@/components/subComponents/Testimonials";
+import Features from "@/components/subcomponents/Features"
+import Hero from "@/components/subcomponents/Hero";
+import Testimonials from "@/components/subcomponents/Testimonials";
 
 const Home = () => {
   return (

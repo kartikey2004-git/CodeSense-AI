@@ -2,26 +2,32 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { UserButton } from "@clerk/nextjs";
 import React from "react";
 import { AppSideBar } from "./app-sidebar";
-import { StickyBanner } from "@/components/ui/sticky-banner";
+// import { StickyBanner } from "@/components/ui/sticky-banner";
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 
 type Props = {
   children: React.ReactNode;
 };
 
-const SidebarLayout = ({ children }: Props) => {
+const SidebarLayout = async ({ children }: Props) => {
+  const { sessionId } = await auth();
+  if (!sessionId) redirect("/sign-in");
+
   return (
     <SidebarProvider>
       <AppSideBar />
       <main className="mr-2 w-full">
         <div className="border-sidebar-border bg-sidebae mt-2 flex items-center gap-2 rounded-sm border p-2 px-4 shadow">
-          <StickyBanner className="bg-black rounded-md">
-            <p className="mx-0 max-w-[90%] text-white drop-shadow-md text-sm">
+          {/* <StickyBanner className="rounded-md bg-black">
+            <p className="mx-0 max-w-[90%] text-sm text-white drop-shadow-md">
               Currently on CodeSense AI v1.0.—{" "}
               <span className="cursor-pointer transition duration-200 hover:underline">
                 New tools dropping soon
               </span>
             </p>
-          </StickyBanner>
+          </StickyBanner> */}
+          
           {/* <SearchBar /> */}
           <div className="ml-auto"></div>
           <UserButton />

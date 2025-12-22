@@ -65,7 +65,7 @@ const Features = () => {
     <div className="min-h-screen bg-white p-4 text-black md:p-8">
       <div className="mx-auto mb-12 grid max-w-7xl grid-cols-1 gap-6 md:grid-cols-2">
         {/* Left Section */}
-        <div className="flex min-h-[400px] flex-col justify-between rounded-xl border border-gray-300 bg-white p-6 md:min-h-[600px] md:p-12">
+        <div className="flex min-h-100 flex-col justify-between rounded-xl border border-gray-300 bg-white p-6 md:min-h-150 md:p-12">
           <div>
             <h2 className="mb-4 text-2xl leading-tight md:mb-6 md:text-4xl">
               CodeSense AI for Developers
@@ -87,7 +87,7 @@ const Features = () => {
         </div>
 
         {/* Right Section */}
-        <div className="flex min-h-[400px] flex-col justify-between rounded-xl border border-gray-300 bg-white p-6 md:min-h-[600px] md:p-12">
+        <div className="flex min-h-100 flex-col justify-between rounded-xl border border-gray-300 bg-white p-6 md:min-h-150 md:p-12">
           <div>
             <div className="mb-6 flex items-center gap-3 md:mb-8">
               <Settings className="h-5 w-5 text-gray-500 md:h-6 md:w-6" />

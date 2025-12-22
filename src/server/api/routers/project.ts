@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 import { pollCommits } from "@/lib/github";
+import { indexGithubRepo } from "@/lib/github-loader"
 
 // create new routers and sub-routers in your tRPC API.
 
@@ -34,6 +35,8 @@ export const projectRouter = createTRPCRouter({
         },
       });
 
+      await indexGithubRepo(project.id, input.githubUrl, input.githubToken);
+
       await pollCommits(project.id);
       return project;
     }),
@@ -65,7 +68,7 @@ export const projectRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      pollCommits(input.projectId).then().catch(console.error);
+      await pollCommits(input.projectId).then().catch(console.error);
       return await ctx.db.commit.findMany({
         where: { projectId: input.projectId },
       });
