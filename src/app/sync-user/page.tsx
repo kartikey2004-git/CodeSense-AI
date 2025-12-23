@@ -20,7 +20,7 @@ const SyncUser = async () => {
 
   // get the user from clerkClient on basis of userId
 
-  const user = await ClerkClient.users.getUser(userId);
+  const user = await ClerkClient?.users.getUser(userId);
 
   if (!user.emailAddresses[0]?.emailAddress) {
     return notFound();

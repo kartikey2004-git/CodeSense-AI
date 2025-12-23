@@ -4,7 +4,7 @@ import axios from "axios";
 import { aiSummariseCommit } from "./gemini";
 
 export const octokit = new Octokit({
-  auth: process.env.GITHUB_TOKEN,
+  auth: process.env.GITHUB_TOKEN || undefined,
 });
 
 // we use github token to authenticate with github and increase our rate limit usage
@@ -30,33 +30,44 @@ export const getCommitHashes = async (
     throw new Error("Invalid github url");
   }
 
-  // list commits from github repo using octokit
+  try {
+    // list commits from github repo using octokit
 
-  const { data } = await octokit.rest.repos.listCommits({
-    owner,
-    repo,
-  });
+    const { data } = await octokit.rest.repos.listCommits({
+      owner,
+      repo,
+    });
 
-  // sort commits by date descending means latest commit first
+    if (!Array.isArray(data)) return [];
 
-  const sortedCommits = data.sort(
-    (a: any, b: any) =>
-      new Date(b.commit.author.date).getTime() -
-      new Date(a.commit.author.date).getTime(),
-  ) as any[];
+    // sort commits by date descending means latest commit first
 
-  // return top 3 latest commits for particular githubUrl
+    const sortedCommits = [...data].sort(
+      (a: any, b: any) =>
+        new Date(b.commit?.author?.date ?? 0).getTime() -
+        new Date(a.commit?.author?.date ?? 0).getTime(),
+    );
 
-  return sortedCommits.slice(0, 3).map((commit: any) => ({
-    commitHash: commit.sha as string,
-    commitMessage: commit.commit?.message ?? "",
-    commitAuthorName: commit.commit?.author?.name ?? "",
-    commitAuthorAvatar: commit?.author?.avatar_url ?? "",
-    commitDate: commit.commit?.author?.date ?? "",
-  }));
+    // return top 3 latest commits for particular githubUrl
+
+    return sortedCommits.slice(0, 3).map((commit: any) => ({
+      commitHash: commit.sha ?? "",
+      commitMessage: commit.commit?.message ?? "",
+      commitAuthorName: commit.commit?.author?.name ?? "",
+      commitAuthorAvatar: commit?.author?.avatar_url ?? "",
+      commitDate: commit.commit?.author?.date ?? "",
+    }));
+  } catch (error) {
+    console.error("Failed to fetch commits:", error);
+    return [];
+  }
 };
 
 export const pollCommits = async (projectId: string) => {
+  if (!projectId) {
+    throw new Error("Project ID is required");
+  }
+
   // fetch githubUrl for particular project from database
 
   const { githubUrl } = await fetchProjectGithubUrl(projectId);
@@ -64,6 +75,8 @@ export const pollCommits = async (projectId: string) => {
   // get the list of last 10 latest commits from particular githubUrl
 
   const commitHashes = await getCommitHashes(githubUrl);
+
+  if (commitHashes.length === 0) return [];
 
   // then filter out the unprocessed commits from particular project
 
@@ -76,6 +89,8 @@ export const pollCommits = async (projectId: string) => {
     commitHashes,
   );
 
+  if (unprocessedCommits.length === 0) return [];
+
   // then we summarise each commit diff using generative AI for unprocessed commits only
 
   const summaryResponses = await Promise.allSettled(
@@ -86,32 +101,36 @@ export const pollCommits = async (projectId: string) => {
 
   // then we create many commits in our database with the summaries we got from ai
 
-  const summaries = summaryResponses.map((response) => {
-    if (response.status === "fulfilled") {
-      return response.value as string;
-    }
-    return "";
-  });
+  const summaries = summaryResponses.map((response) =>
+    response.status === "fulfilled" ? response.value : "",
+  );
 
   // finally we create many commits in our database with the summaries we got from ai
 
-  const commits = await db.commit.createMany({
-    data: summaries.map((summary, index) => {
-      console.log(`processing commit ${index}`);
+  try {
+    const commits = await db.commit.createMany({
+      data: summaries.map((summary, index) => {
+        console.log(`processing commit ${index}`);
 
-      return {
-        projectId,
-        commitHash: unprocessedCommits[index]?.commitHash!,
-        commitMessage: unprocessedCommits[index]?.commitMessage!,
-        commitAuthorName: unprocessedCommits[index]?.commitAuthorName!,
-        commitAuthorAvatar: unprocessedCommits[index]?.commitAuthorAvatar!,
-        commitDate: unprocessedCommits[index]?.commitDate!,
-        summary,
-      };
-    }),
-  });
+        const commit = unprocessedCommits[index];
 
-  return commits;
+        return {
+          projectId,
+          commitHash: commit?.commitHash!,
+          commitMessage: commit?.commitMessage!,
+          commitAuthorName: commit?.commitAuthorName!,
+          commitAuthorAvatar: commit?.commitAuthorAvatar!,
+          commitDate: commit?.commitDate!,
+          summary,
+        };
+      }),
+    });
+
+    return commits;
+  } catch (error) {
+    console.error("Failed to store commits:", error);
+    throw error;
+  }
 };
 
 // fetch githubUrl for particular project from database and return that particular project and githubUrl
@@ -133,46 +152,54 @@ async function fetchProjectGithubUrl(projectId: string) {
 
 // get the diff , then pass the diff into ai and then summarise with help of AI sdk - generative AI
 
-async function summariseCommit(githubUrl: string, commitHash: string) {
-  const { data: diff } = await axios.get(
-    `${githubUrl}/commit/${commitHash}.diff`,
-    {
-      headers: {
-        Accept: "application/vnd.github.v3.diff",
+async function summariseCommit(
+  githubUrl: string,
+  commitHash: string,
+): Promise<string> {
+  if (!githubUrl || !commitHash) return "";
+
+  try {
+    const { data: diff } = await axios.get(
+      `${githubUrl}/commit/${commitHash}.diff`,
+      {
+        headers: {
+          Accept: "application/vnd.github.v3.diff",
+        },
+        responseType: "text",
+        timeout: 15_000,
       },
-      responseType: "text",
-    },
-  );
+    );
 
-  const summarycommit = await aiSummariseCommit(diff);
+    if (!diff || typeof diff !== "string") return "";
 
-  if (!summarycommit) return "";
-
-  return summarycommit;
+    const summary = await aiSummariseCommit(diff);
+    return summary || "";
+  } catch (error) {
+    console.error(`Failed to summarise commit ${commitHash}:`, error);
+    return "";
+  }
 }
 
 async function filterUnprocessedCommits(
   projectId: string,
   commitHashes: Response[],
-) {
+): Promise<Response[]> {
+  if (!commitHashes.length) return [];
+
   // we first get all the processed commits from database - commits that are already saved in database
 
   const processedCommits = await db.commit.findMany({
     where: {
       projectId,
     },
+    select: { commitHash: true },
   });
 
   // then we filter out the unprocessed commits from the list of commit hashes we got from github by comparing the commit hashes
 
-  const unprocessedCommits = commitHashes.filter(
-    (commit) =>
-      !processedCommits.some(
-        (processedCommit) => processedCommit.commitHash === commit.commitHash,
-      ),
-  );
+  const processedSet = new Set(processedCommits.map((c) => c.commitHash));
 
-  return unprocessedCommits;
+  return commitHashes.filter((commit) => !processedSet.has(commit.commitHash));
 }
 
 /*

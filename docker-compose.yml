@@ -1,0 +1,13 @@
+# YAML: Yet Another Markup Language
+# docker compose file for database
+
+name: codesense
+services:
+  db:
+    image: postgres:latest
+    environment:
+      - POSTGRES_USER=kartikey
+      - POSTGRES_PASSWORD=npg_r6qsaYJDNI8z
+      - POSTGRES_DB=codesense
+    ports:
+      - 5432:5432
