@@ -1,11 +1,11 @@
 generator client {
-  provider = "prisma-client-js"
-  previewFeatures = ["postgresqlExtensions"]   // Enabling the postgresqlExtensions preview feature to use pgvector extension
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"] // Enabling the postgresqlExtensions preview feature to use pgvector extension
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
   extensions = [vector] // tells postgres database to enabling pgvector extension 
 }
 
@@ -28,6 +28,7 @@ model User {
   // one credit means one file that we helps us you to processed out - 150 credits is the free tier that we allows user to have when creating project
 
   userToProjects UserToProject[]
+  questionAsked  Question[]
 }
 
 model Project {
@@ -43,6 +44,7 @@ model Project {
   userToProjects       UserToProject[]
   commits              Commit[]
   sourceCodeEmbeddings SourceCodeEmbedding[]
+  savedQuestions       Question[]
 }
 
 // Bridging Model for creating relationships between User To Project means A project have multiple users and A user can be a part of multiple projects - Many to Many relationship
@@ -62,22 +64,16 @@ model UserToProject {
   @@unique([userId, projectId]) // if we're a user we can only have a pairing of one unique userID , projectID : this the compound key that we are just creating
 }
 
-
-/*
-
-  - using pgvector to store embeddings and 768 is the dimension of the embedding because of the particular embedding model that gemini provides us with having 768 dimensions
-
-  - Unsupported is used because prisma does not support pgvector natively
-  
-  - and we have to use Unsupported to define custom types and vector is the type provided by pgvector extension
-
-*/
-
+/**
+ * - using pgvector to store embeddings and 768 is the dimension of the embedding because of the particular embedding model that gemini provides us with having 768 dimensions
+ * - Unsupported is used because prisma does not support pgvector natively
+ * - and we have to use Unsupported to define custom types and vector is the type provided by pgvector extension
+ */
 
 // model/table to store source code embeddings
 
 model SourceCodeEmbedding {
-  id  String   @id @default(cuid())
+  id               String                      @id @default(cuid())
   summaryEmbedding Unsupported("vector(768)")?
 
   sourceCode String
@@ -89,6 +85,23 @@ model SourceCodeEmbedding {
 
   projectId String
   project   Project @relation(fields: [projectId], references: [id])
+}
+
+model Question {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  question String
+  answer   String
+
+  filesReferences Json?
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
 }
 
 // model to store commits : a project have list of commits which is an array of commits

@@ -13,6 +13,9 @@ const config = {
       {
         hostname: "images.unsplash.com",
       },
+      {
+        hostname: "img.clerk.com",
+      },
     ],
   },
 };

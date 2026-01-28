@@ -15,88 +15,181 @@ import Image from "next/image";
 import React, { useState } from "react";
 import { askQuestion } from "./action";
 import { readStreamableValue } from "@ai-sdk/rsc";
+import CodeReferences from "./code-references";
+import { api } from "@/trpc/react";
+import { toast } from "sonner";
+import { Download } from "lucide-react";
+import type { FileReference } from "./code-references";
+
+const normalizeFiles = (files: any[]): FileReference[] => {
+  return files.map((file) => ({
+    fileName: file.fileName,
+    summary: file.summary,
+    sourceCode: {
+      language: "html",
+      content: file.sourceCode,
+    },
+  }));
+};
 
 const AskQuestionCard = () => {
   const { project } = useProject();
   const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState("");
+
+  const [filesReferences, setFilesReferences] = useState<FileReference[]>([]);
+
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const [filesReferences, setFilesReferences] = useState<
-    { fileName: string; sourceCode: string; summary: string }[]
-  >([]);
+  const saveAnswer = api.project.saveAnswer.useMutation();
 
-  const [answer, setAnswer] = useState("");
+  const onSaveAnswer = () => {
+    if (!answer.trim()) {
+      toast.error("Nothing to save");
+      return;
+    }
+
+    saveAnswer.mutate(
+      {
+        projectId: project!.id,
+        answer,
+        question,
+        filesReferences,
+      },
+      {
+        onSuccess: () => {
+          toast.success("Answer Saved successfully");
+        },
+        onError: () => {
+          toast.error("Failed to save answer");
+        },
+      },
+    );
+    setOpen(false);
+  };
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    setAnswer("");
-    setFilesReferences([]);
     e.preventDefault();
 
+    if (!question.trim()) return;
     if (!project?.id) return;
-    setLoading(true);
 
-    const { filesReferences, output } = await askQuestion(question, project.id);
+    try {
+      setLoading(true);
+      setAnswer("");
+      setFilesReferences([]);
 
-    setOpen(true);
-    setFilesReferences(filesReferences);
+      const result = await askQuestion(question, project.id);
 
-    for await (const delta of readStreamableValue(output)) {
-      if (delta) {
-        setAnswer((ans) => ans + delta);
+      // Open dialog AFTER request is successful
+      setOpen(true);
+
+      // Stream markdown answer
+      for await (const chunk of readStreamableValue(result.output)) {
+        if (chunk) {
+          setAnswer((prev) => prev + chunk);
+        }
       }
+
+      // Normalize code references
+      const normalized = normalizeFiles(result.filesReferences || []);
+
+      setFilesReferences(normalized);
+
+      toast.success("Answer generated");
+    } catch (error) {
+      toast.error("Something went wrong");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
     <>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[81vh] max-w-none min-w-[85vw] overflow-y-auto p-4">
-          {/* Header */}
-          <div className="flex items-center justify-between border-b px-6 py-4">
-            <div className="flex items-center gap-3">
-              <Image src="/bg.svg" alt="CodeSense AI" width={36} height={36} />
-              <h2 className="text-lg font-semibold">CodeSense AI</h2>
+      <Dialog
+        open={open}
+        onOpenChange={(state) => !saveAnswer.isPending && setOpen(state)}
+      >
+        <DialogContent className="max-h-[81vh] max-w-none min-w-[85vw] overflow-y-auto p-8">
+          <DialogHeader>
+            <div className="flex items-center justify-between border-b px-6 py-4">
+              {/* Left: Title / Branding */}
+              <DialogTitle className="flex items-center gap-3">
+                <Image
+                  src="/bg.svg"
+                  alt="CodeSense AI"
+                  width={36}
+                  height={36}
+                />
+                <span className="text-lg font-semibold">CodeSense AI</span>
+              </DialogTitle>
+
+              {/* Right: Action */}
+              <Button
+                variant="outline"
+                onClick={() => onSaveAnswer()}
+                disabled={saveAnswer.isPending || loading || !answer}
+              >
+                {saveAnswer.isPending ? "Saving..." : "Save Answer"}
+
+                <Download className="ml-2 h-4 w-4" />
+              </Button>
             </div>
+          </DialogHeader>
+
+          <div data-color-mode="dark" className="px-6 py-4">
+            <MDEditor.Markdown source={answer} />
           </div>
 
-          {/* Content */}
-          <MDEditor.Markdown
-            source={answer}
-            className="prose min-h-[60vh] max-w-none px-6 py-4"
-          />
+          <div className="h-4"></div>
 
-          {/* Footer */}
+          <div className="w-full overflow-hidden">
+            {filesReferences.length > 0 && (
+              <div className="px-6 pb-4">
+                <CodeReferences filesReferences={filesReferences} />
+              </div>
+            )}
+          </div>
+
           <div className="flex justify-end border-t px-6 py-4">
-            <Button onClick={() => setOpen(false)}>Close</Button>
+            <Button
+              onClick={() => setOpen(false)}
+              disabled={saveAnswer.isPending}
+            >
+              Close
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      <Card className="relative col-span-1 lg:col-span-3">
-        <CardHeader>
-          <CardTitle className="text-base sm:text-lg">Ask a question</CardTitle>
-        </CardHeader>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <Card className="relative col-span-1 lg:col-span-3">
+          <CardHeader>
+            <CardTitle className="text-base sm:text-lg">
+              Ask a question
+            </CardTitle>
+          </CardHeader>
 
-        <CardContent>
-          <form onSubmit={onSubmit} className="space-y-4">
-            <Textarea
-              placeholder="Which file should I edit to change the home page?"
-              className="min-h-25 resize-none"
-              onChange={(e) => setQuestion(e.target.value)}
-            />
+          <CardContent>
+            <form onSubmit={onSubmit} className="space-y-4">
+              <Textarea
+                placeholder="Which file should I edit to change the home page?"
+                className="min-h-25 resize-none"
+                onChange={(e) => setQuestion(e.target.value)}
+              />
 
-            <Button
-              type="submit"
-              disabled={loading}
-              className="w-full sm:w-auto"
-            >
-              {loading ? "Thinking..." : "Ask CodeSense AI"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full sm:w-auto"
+              >
+                {loading ? "Thinking..." : "Ask CodeSense AI"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </>
   );
 };
