@@ -2,22 +2,17 @@
 
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { cn } from "@/lib/utils";
 import React, { useState } from "react";
+import type { FileReference } from "@/types/types";
+import dynamic from "next/dynamic";
+import { detectLanguageFromFileName } from "@/lib/code-language-detector";
 
-
-export type SourceCode = {
-  language: string;
-  content: string;
-};
-
-export type FileReference = {
-  fileName: string;
-  sourceCode: SourceCode;
-  summary: string;
-};
+const SyntaxHighlighter = dynamic(
+  () => import("react-syntax-highlighter").then((mod) => mod.Prism),
+  { ssr: false },
+);
 
 type Props = {
   filesReferences: FileReference[];
@@ -41,7 +36,7 @@ const CodeReferences = ({ filesReferences }: Props) => {
                 variant="ghost"
                 onClick={() => setTab(file.fileName)}
                 className={cn(
-                  "text-md rounded-md px-3 py-1.5 font-normal whitespace-nowrap transition-colors",
+                  "text-md rounded-sm px-3 py-1.5 font-normal whitespace-nowrap transition-colors",
                   tab === file.fileName
                     ? "bg-black text-white hover:bg-black hover:text-white"
                     : "bg-white text-black",
@@ -52,7 +47,16 @@ const CodeReferences = ({ filesReferences }: Props) => {
             ))}
           </div>
 
+          {/* CODE VIEW */}
           {filesReferences.map((file) => {
+            const code =
+              typeof file.sourceCode?.content === "string"
+                ? file.sourceCode.content
+                : JSON.stringify(file.sourceCode?.content, null, 2);
+
+            const language = detectLanguageFromFileName(
+              file.fileName || "text",
+            );
 
             return (
               <TabsContent
@@ -61,13 +65,12 @@ const CodeReferences = ({ filesReferences }: Props) => {
                 className="mt-3 max-h-[70vh] min-w-[83vw] overflow-auto border"
               >
                 <SyntaxHighlighter
-                  language={file.sourceCode.language}
+                  language={language}
                   style={vscDarkPlus}
                   customStyle={{
                     background: "#0d1117",
                     margin: 0,
                     padding: "1rem",
-                    borderRadius: "0.75rem",
                     fontSize: "16px",
                     lineHeight: "1.6",
                     fontFamily:
@@ -80,7 +83,7 @@ const CodeReferences = ({ filesReferences }: Props) => {
                     },
                   }}
                 >
-                  {file.sourceCode.content}
+                  {code}
                 </SyntaxHighlighter>
               </TabsContent>
             );

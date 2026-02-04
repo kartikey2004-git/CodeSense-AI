@@ -8,6 +8,7 @@ import CommitLog from "./commit-log";
 import { Button } from "@/components/ui/button";
 import CreateProjectModal from "@/components/subcomponents/CreateProjectModal";
 import AskQuestionCard from "./ask-question-card";
+import Uploader from "./uploader";
 
 const Dashboard = () => {
   const { project } = useProject();
@@ -76,7 +77,8 @@ const Dashboard = () => {
       <div className="mt-4">
         <div className="grid grid-cols-2 gap-4">
           <AskQuestionCard />
-          {/* Meeting Card */}
+          {/* <MeetingCard /> */}
+          <Uploader />
         </div>
       </div>
       <div className="mt-8"></div>

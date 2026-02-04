@@ -1,68 +1,12 @@
 "use client";
 
-import {
-  BarChart3,
-  FileText,
-  Layout,
-  Mic,
-  Search,
-  Settings,
-  Users,
-  Zap,
-  History,
-} from "lucide-react";
+import { FEATURES } from "@/lib/data/data";
+import { BarChart3, Layout, Settings } from "lucide-react";
 import React from "react";
-import { type ElementType } from "react";
-
-export interface FeatureItem {
-  icon: ElementType;
-  title: string;
-  text: string;
-  color: string;
-}
-
-export const FEATURES: FeatureItem[] = [
-  {
-    icon: FileText,
-    title: "Automatic Code Documentation",
-    text: "Dionysus generates detailed documentation across your entire codebase, making it easier to understand structure and intent.",
-    color: "text-red-600",
-  },
-  {
-    icon: Search,
-    title: "Codebase Search",
-    text: "Quickly locate any function, file, or component with fast, context-aware search built for developers.",
-    color: "text-blue-600",
-  },
-  {
-    icon: Zap,
-    title: "Commit Message Summaries",
-    text: "AI-powered summaries keep you updated on the latest changes without digging through raw commit logs.",
-    color: "text-yellow-600",
-  },
-  {
-    icon: Mic,
-    title: "Meeting Transcription",
-    text: "Dionysus converts your meetings into accurate transcripts with key topics and clear summaries.",
-    color: "text-green-600",
-  },
-  {
-    icon: History,
-    title: "Real-Time Meeting Search",
-    text: "Instant contextual search across all past meetings so you can find answers without rewatching long recordings.",
-    color: "text-purple-600",
-  },
-  {
-    icon: Users,
-    title: "Collaborative Platform",
-    text: "Teams can collaborate, explore documentation, review summaries, and interact with the entire knowledge layer together.",
-    color: "text-cyan-600",
-  },
-];
 
 const Features = () => {
   return (
-    <div className="min-h-screen bg-white p-4 text-black md:p-8">
+    <div className="min-h-screen bg-white p-4 mb-10 text-black md:p-8">
       <div className="mx-auto mb-12 grid max-w-7xl grid-cols-1 gap-6 md:grid-cols-2">
         {/* Left Section */}
         <div className="flex min-h-100 flex-col justify-between rounded-xl border border-gray-300 bg-white p-6 md:min-h-150 md:p-12">

@@ -14,18 +14,7 @@ import AskQuestionCard from "../dashboard/ask-question-card";
 import Image from "next/image";
 import MDEditor from "@uiw/react-md-editor";
 import CodeReferences from "../dashboard/code-references";
-import type { FileReference } from "../dashboard/code-references";
-
-const normalizeFiles = (files: any[]): FileReference[] => {
-  return files.map((file) => ({
-    fileName: file.fileName,
-    summary: file.summary,
-    sourceCode: {
-      language: "html",
-      content: file.sourceCode,
-    },
-  }));
-};
+import type { FileReference } from "@/types/types";
 
 const QA = () => {
   const { projectId } = useProject();
@@ -37,9 +26,8 @@ const QA = () => {
 
   const activeQuestion = activeIndex !== null ? questions?.[activeIndex] : null;
 
-  const filesReferences = activeQuestion?.filesReferences
-    ? normalizeFiles(activeQuestion.filesReferences as any[])
-    : [];
+  const filesReferences =
+    (activeQuestion?.filesReferences as FileReference[]) ?? [];
 
   /**
    * IMPORTANT:

@@ -5,12 +5,7 @@ import { createStreamableValue } from "@ai-sdk/rsc";
 import { generateEmbedding } from "@/lib/gemini";
 import { db } from "@/server/db";
 import { google } from "@ai-sdk/google";
-
-type SearchResult = {
-  fileName: string;
-  sourceCode: string;
-  summary: string;
-};
+import type { SearchResult } from "@/types/types";
 
 export async function askQuestion(question: string, projectId: string) {
   if (!question?.trim()) {

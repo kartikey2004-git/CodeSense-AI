@@ -23,40 +23,31 @@ export class AIService {
     try {
       const { text } = await generateText({
         model: google("gemini-2.5-flash"),
-        prompt: `
-You are an expert programmer, and you are trying to summarize a git diff.
+        prompt: `You are a senior software engineer summarizing a git diff.
 
-Reminders about the git diff format:
+Generate EXACTLY 4 bullet points summarizing the most important changes from the diff.
 
-For every file, there are a few metadata lines, like (for example):
-\`\`\`
-diff -- git a/lib/index.js b/lib/index.js
-index aadf691 .. bfef603 100644
--- a/lib/index.js
-+++ b/lib/index.js
-\`\`\`
-This means that \`lib/index.js\` was modified in this commit. Note that this is only an example.
-Then there is a specifier of the lines that were modified
-A line starting with \`+\` means it was added.
-A line that starting with \`-\` means that line was deleted.
-A line that starts with neither \`+\` nor \`-\` is code given for context and better understanding.
-It is not part of the diff.
-[...]
-EXAMPLE SUMMARY COMMENTS:
-\`\`\`
-* Raised the amount of returned recordings from \`10\` to \`100\`. [packages/server/recordings_api.ts], [packages/server/constants.ts]
-* Fixed a typo in the github action name [.github/workflows/gpt-commit-summarizer.yml]
-* Moved the \`octokit\` initialization to a separate file [src/octokit.ts], [src/index.ts]
-* Added an OpenAI API for completions [packages/utils/apis/openai.ts]
-* Lowered numeric tolerance for test files
-\`\`\`
-Most commits will have less comments than this examples list.
-The last comment does not include the file names,
-because there were more than two relevant files in the hypothetical commit.
-Do not include parts of the example in your summary.
-It is given only as an example of appropriate comments.
+Rules:
 
-Please summarise the following diff files: \n\n${diff}`,
+1. Only use information present in the diff.
+2. Do not invent features, files, or behavior.
+3. Prioritize functional and logical changes over formatting.
+4. Use past-tense commit style verbs (Added, Fixed, Updated, Refactored, Improved, Removed).
+5. Each bullet must be ONE sentence.
+6. Keep each line concise (max 20 words).
+7. Do not repeat similar changes across bullets.
+8. If there are fewer than 4 meaningful changes, summarize smaller changes to still produce 4 bullets.
+
+Formatting:
+
+- Use "*" for bullets
+- No headings
+- No explanations
+- No extra text before or after bullets
+
+Git diff input:
+${diff}
+`,
       });
 
       if (!text?.trim()) {
@@ -91,10 +82,35 @@ Please summarise the following diff files: \n\n${diff}`,
         messages: [
           {
             role: "user",
-            content: `Summarize the purpose of the ${doc.metadata.source} file and responsibilities in bullet points (max 5).
+            content: `You are a senior software engineer analyzing a source file.
 
-Here is the code:
-${code}`,
+Summarize the PURPOSE of the file and its main RESPONSIBILITIES.
+
+Rules:
+
+1. Use ONLY the provided code.
+2. Do NOT guess external behavior or project context.
+3. Focus on what the file is responsible for, not line-by-line implementation details.
+4. Write in clear technical language.
+5. Use present tense.
+6. Each bullet must be one short sentence.
+7. Keep bullets between 8-15 words.
+8. Output a maximum of 5 bullets.
+9. If fewer responsibilities exist, summarize core purpose clearly.
+
+Formatting:
+
+- Use "*" for bullets
+- No headings
+- No explanations outside bullets
+- Do not repeat the file name in bullets
+
+File path:
+${doc.metadata.source}
+
+Source code:
+${code}
+`,
           },
         ],
       });

@@ -2,20 +2,13 @@ import { db } from "@/server/db";
 import { Octokit } from "octokit";
 import axios from "axios";
 import { aiSummariseCommit } from "./gemini";
+import type { Response } from "@/types/types";
 
 export const octokit = new Octokit({
   auth: process.env.GITHUB_TOKEN || undefined,
 });
 
 // we use github token to authenticate with github and increase our rate limit usage
-
-type Response = {
-  commitHash: string;
-  commitMessage: string;
-  commitAuthorName: string;
-  commitAuthorAvatar: string;
-  commitDate: Date;
-};
 
 // get the list of commits related data from github repo using octokit in type Response
 
@@ -76,7 +69,7 @@ export const pollCommits = async (projectId: string) => {
 
   const commitHashes = await getCommitHashes(githubUrl);
 
-  if (commitHashes.length === 0) return [];
+  if (!commitHashes.length) return [];
 
   // then filter out the unprocessed commits from particular project
 
@@ -89,48 +82,66 @@ export const pollCommits = async (projectId: string) => {
     commitHashes,
   );
 
-  if (unprocessedCommits.length === 0) return [];
+  if (!unprocessedCommits.length) return [];
 
   // then we summarise each commit diff using generative AI for unprocessed commits only
 
-  const summaryResponses = await Promise.allSettled(
-    unprocessedCommits.map((commit) => {
-      return summariseCommit(githubUrl, commit.commitHash);
-    }),
-  );
+  // Intialising array to store processed commits
+  const storedCommits = [];
 
-  // then we create many commits in our database with the summaries we got from ai
+  // loop through each unprocessed commit
+  for (const commit of unprocessedCommits) {
+    console.log("Processing:", commit.commitHash);
 
-  const summaries = summaryResponses.map((response) =>
-    response.status === "fulfilled" ? response.value : "",
-  );
+    // initialise summary and attempts for retrying
+    let summary = "";
+    let attempts = 0;
 
-  // finally we create many commits in our database with the summaries we got from ai
+    // maximum number of retries
 
-  try {
-    const commits = await db.commit.createMany({
-      data: summaries.map((summary, index) => {
-        console.log(`processing commit ${index}`);
+    const maxRetries = 3;
 
-        const commit = unprocessedCommits[index];
+    // Loop to retry summarisation if it fails
 
-        return {
-          projectId,
-          commitHash: commit?.commitHash!,
-          commitMessage: commit?.commitMessage!,
-          commitAuthorName: commit?.commitAuthorName!,
-          commitAuthorAvatar: commit?.commitAuthorAvatar!,
-          commitDate: commit?.commitDate!,
-          summary,
-        };
-      }),
+    while (!summary && attempts < maxRetries) {
+      attempts++;
+
+      summary = await summariseCommit(githubUrl, commit.commitHash);
+
+      if (!summary) {
+        console.log(`Retry ${attempts} failed for ${commit.commitHash}`);
+      }
+    }
+
+    // Skip storing if still failed after all retries
+
+    if (!summary) {
+      console.log("Skipping commit:", commit.commitHash);
+      continue;
+    }
+
+    // finally we create many commits in our database with the summaries we got from ai
+
+    // Store the commits in database
+
+    const savedCommits = await db.commit.create({
+      data: {
+        projectId,
+        commitHash: commit.commitHash,
+        commitMessage: commit.commitMessage,
+        commitAuthorName: commit.commitAuthorName,
+        commitAuthorAvatar: commit.commitAuthorAvatar,
+        commitDate: commit.commitDate,
+        summary,
+      },
     });
 
-    return commits;
-  } catch (error) {
-    console.error("Failed to store commits:", error);
-    throw error;
+    // Add the saved commits to the array
+
+    storedCommits.push(savedCommits);
   }
+
+  return storedCommits;
 };
 
 // fetch githubUrl for particular project from database and return that particular project and githubUrl

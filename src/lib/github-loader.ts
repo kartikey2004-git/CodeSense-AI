@@ -4,19 +4,21 @@ import { TRPCError } from "@trpc/server";
 
 import { db } from "@/server/db";
 import { summariseCode, generateEmbedding } from "./gemini";
+import type { EmbeddingVector, SafeSummary } from "@/types/types";
 
-type EmbeddingResult = {
-  summary: string;
-  embedding: number[];
-  sourceCode: string;
-  fileName: string;
+const maxRetries = 3;
+
+const isNonEmptyString = (value: unknown): value is string => {
+  return typeof value === "string" && value.trim().length > 0;
 };
 
-function isEmbeddingResult(
-  value: EmbeddingResult | null,
-): value is EmbeddingResult {
-  return value !== null;
-}
+const isValidEmbedding = (value: unknown): value is EmbeddingVector => {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((v) => typeof v === "number")
+  );
+};
 
 export const loadGithubRepo = async (
   githubUrl: string,
@@ -54,11 +56,11 @@ export const loadGithubRepo = async (
 
     /*
   
-  - It Fetches the files from the GitHub repository and creates Document instances for each file.
+    - It Fetches the files from the GitHub repository and creates Document instances for each file.
 
-  - returns a promise that resolves to an array of Document instances.
+    - returns a promise that resolves to an array of Document instances.
   
-  */
+    */
 
     const docs = await loader.load();
 
@@ -79,53 +81,6 @@ export const loadGithubRepo = async (
   }
 };
 
-const generateEmbeddings = async (
-  docs: Document[],
-): Promise<EmbeddingResult[]> => {
-  /*
-  
-    - this function is going to loop through all files document
-
-    - and generate AI summary for files pageContent and then take summary and generate vector embeddings for it
-  
-  */
-
-  const results = await Promise.allSettled(
-    docs.map(async (doc) => {
-      try {
-        // for each document generate summary
-        const summary = await summariseCode(doc);
-
-        if (!summary?.trim()) return null;
-
-        // for each document summary : generate embedding
-
-        const embedding = await generateEmbedding(summary);
-
-        if (!embedding.length) return null;
-
-        return {
-          summary,
-          embedding,
-          sourceCode: JSON.parse(JSON.stringify(doc.pageContent)), // parsing and then convert to string in case of any error
-
-          fileName: doc.metadata.source ?? "unknown",
-        };
-      } catch {
-        return null;
-      }
-    }),
-  );
-
-  return results
-    .filter(
-      (r): r is PromiseFulfilledResult<EmbeddingResult | null> =>
-        r.status === "fulfilled",
-    )
-    .map((r) => r.value)
-    .filter(isEmbeddingResult);
-};
-
 export const indexGithubRepo = async (
   projectId: string,
   githubUrl: string,
@@ -135,6 +90,13 @@ export const indexGithubRepo = async (
 
   const docs = await loadGithubRepo(githubUrl, githubToken);
 
+  if (!docs.length) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "No source files found.",
+    });
+  }
+
   /*
 
     - now we have all files from github repository in docs variable as array of Document type
@@ -143,42 +105,97 @@ export const indexGithubRepo = async (
   
   */
 
-  const embeddings = await generateEmbeddings(docs);
+  // to keep track of processed files
 
-  if (!embeddings.length) {
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "No valid embeddings generated.",
+  let indexedFiles = 0;
+
+  // Loop through all files and generate summary for each file
+
+  for (let i = 0; i < docs.length; i++) {
+    const doc = docs[i];
+
+    const fileName: string =
+      typeof doc?.metadata?.source === "string"
+        ? doc.metadata.source
+        : "unknown";
+
+    console.log(`Processing ${i + 1}/${docs.length}: ${fileName}`);
+
+    const alreadyIndexed = await db.sourceCodeEmbedding.findFirst({
+      where: {
+        projectId: projectId,
+        fileName: fileName,
+      },
     });
-  }
 
-  /*
+    if (alreadyIndexed) {
+      console.log(`File already indexed: ${fileName}`);
+      continue;
+    }
 
-    - now we have generate AI summary for files pagecontent(code) in repo and all embeddings for each file summary in allEmbeddings variable
+    // for each file generate AI summary for code files and then take summary and generate vector embeddings for it
 
-    - now we need to store each embedding in our database with help of prisma client
-  
-  */
+    let summary: SafeSummary | null = null;
 
-  await Promise.allSettled(
-    embeddings.map(async (embedding, index) => {
+    // Summarise Retry Loop for generating summary for all files
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(
-          `Indexing ${index + 1}/${embeddings.length}: ${embedding.fileName}`,
-        );
+        const result = await summariseCode(doc!);
 
-        // creating a new record in SourceCodeEmbedding table for each file embedding
+        if (isNonEmptyString(result)) {
+          summary = result as SafeSummary;
+          break;
+        }
 
-        const record = await db.sourceCodeEmbedding.create({
-          data: {
-            summary: embedding.summary,
-            sourceCode: embedding.sourceCode,
-            fileName: embedding.fileName,
-            projectId,
-          },
-        });
+        console.log(`Summary retry ${attempt} failed`);
+      } catch (error) {
+        console.error("Summary error:", error);
+      }
+    }
 
-        /*
+    if (!summary) {
+      console.log(`Skipping file (summary failed): ${fileName}`);
+      continue;
+    }
+
+    // Embedding Retry Loop for generating vector embeddings for all files
+
+    let embedding: EmbeddingVector | null = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await generateEmbedding(summary);
+
+        if (isValidEmbedding(result)) {
+          embedding = result;
+          break;
+        }
+
+        console.log(`Embedding retry ${attempt} failed: ${fileName}`);
+      } catch (error) {
+        console.error("Embedding error:", error);
+      }
+    }
+
+    if (!embedding) {
+      console.log(`Skipping file (embedding failed): ${fileName}`);
+      continue;
+    }
+
+    try {
+      // creating a new record in SourceCodeEmbedding table for each file embedding
+
+      const record = await db.sourceCodeEmbedding.create({
+        data: {
+          projectId,
+          fileName: fileName,
+          summary: summary,
+          sourceCode: String(doc!.pageContent),
+        },
+      });
+
+      /*
 
         - but how we insert the vector  inside the postgres database 
 
@@ -188,14 +205,30 @@ export const indexGithubRepo = async (
       
       */
 
-        await db.$executeRaw`
+      await db.$executeRaw<void>`
           UPDATE "SourceCodeEmbedding"
-          SET "summaryEmbedding" = ${embedding.embedding}::vector
+          SET "summaryEmbedding" = ${embedding}::vector
           WHERE "id" = ${record.id}
         `;
-      } catch (error) {
-        console.error(`DB write failed for ${embedding.fileName}:`, error);
-      }
-    }),
-  );
+
+      indexedFiles++;
+
+      console.log("Indexed successfully");
+    } catch (error) {
+      console.error(`DB insert failed: ${fileName}`, error);
+    }
+  }
+
+  return {
+    totalFiles: docs.length,
+    indexedFiles,
+  };
+
+  /*
+
+    - now we have generate AI summary for files pagecontent(code) in repo and all embeddings for each file summary in allEmbeddings variable
+
+    - now we need to store each embedding in our database with help of prisma client
+  
+  */
 };

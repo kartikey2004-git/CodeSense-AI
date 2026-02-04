@@ -41,7 +41,7 @@ const Hero = () => {
           </div>
 
           <p className="mb-12 max-w-md text-sm leading-relaxed text-gray-700">
-            Dionysus is a powerful platform designed to simplify developer
+            CodeSense AI is a powerful platform designed to simplify developer
             collaboration that simplifies the process, streamlines code
             understanding, and enhances teamwork.
           </p>

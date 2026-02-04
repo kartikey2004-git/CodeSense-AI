@@ -19,15 +19,19 @@ import CodeReferences from "./code-references";
 import { api } from "@/trpc/react";
 import { toast } from "sonner";
 import { Download } from "lucide-react";
-import type { FileReference } from "./code-references";
+import type { FileReference, SearchResult } from "@/types/types";
+import { detectLanguageFromFileName } from "@/lib/code-language-detector";
+import useRefetch from "@/hooks/use-refetch";
 
-const normalizeFiles = (files: any[]): FileReference[] => {
-  return files.map((file) => ({
+const mapSearchResultsToFileReferences = (
+  results: SearchResult[],
+): FileReference[] => {
+  return results.map((file) => ({
     fileName: file.fileName,
     summary: file.summary,
     sourceCode: {
-      language: "html",
       content: file.sourceCode,
+      language: detectLanguageFromFileName(file.fileName),
     },
   }));
 };
@@ -43,6 +47,8 @@ const AskQuestionCard = () => {
   const [loading, setLoading] = useState(false);
 
   const saveAnswer = api.project.saveAnswer.useMutation();
+
+  const refetch = useRefetch();
 
   const onSaveAnswer = () => {
     if (!answer.trim()) {
@@ -60,6 +66,7 @@ const AskQuestionCard = () => {
       {
         onSuccess: () => {
           toast.success("Answer Saved successfully");
+          refetch();
         },
         onError: () => {
           toast.error("Failed to save answer");
@@ -92,11 +99,11 @@ const AskQuestionCard = () => {
         }
       }
 
-      // Normalize code references
-      const normalized = normalizeFiles(result.filesReferences || []);
+      const mappedFiles = mapSearchResultsToFileReferences(
+        result.filesReferences || [],
+      );
 
-      setFilesReferences(normalized);
-
+      setFilesReferences(mappedFiles);
       toast.success("Answer generated");
     } catch (error) {
       toast.error("Something went wrong");
@@ -139,7 +146,7 @@ const AskQuestionCard = () => {
           </DialogHeader>
 
           <div data-color-mode="dark" className="px-6 py-4">
-            <MDEditor.Markdown source={answer} />
+            <MDEditor.Markdown source={answer} className="px-6 py-4" />
           </div>
 
           <div className="h-4"></div>

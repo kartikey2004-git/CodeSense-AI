@@ -5,14 +5,9 @@ import { Input } from "@/components/ui/input";
 import Modal from "@/components/ui/modal";
 import useRefetch from "@/hooks/use-refetch";
 import { api } from "@/trpc/react";
+import type { FormInput } from "@/types/types";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-
-type FormInput = {
-  repoUrl: string;
-  projectName: string;
-  githubToken?: string;
-};
 
 type Props = {
   isOpen: boolean;
@@ -20,7 +15,6 @@ type Props = {
 };
 
 const CreateProjectModal = ({ isOpen, onClose }: Props) => {
-
   // Here we react-hook-form for managing forms in our app : because of Performant, flexible and extensible forms with easy-to-use validation.
 
   const { register, handleSubmit, reset } = useForm<FormInput>();
@@ -98,7 +92,6 @@ const CreateProjectModal = ({ isOpen, onClose }: Props) => {
 };
 
 export default CreateProjectModal;
-
 
 // now we are going to create trpc route handler to create the project
 
