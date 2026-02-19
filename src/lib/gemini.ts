@@ -13,7 +13,7 @@ export async function generateEmbedding(summary: string) {
   return aiClient.generateEmbedding(summary);
 }
 
-/*
+
 
 // const rawDiff = `diff --git a/src/middleware/auth.ts b/src/middleware/auth.ts
 // index 2a4b6c1..9f8e3d2 100644
@@ -85,8 +85,6 @@ export async function generateEmbedding(summary: string) {
 // const res1 = await summariseCode(structuredDiffDoc);
 // console.log(res1);
 
-// const res2 = await generateEmbedding("hi")
+// const res2 = await generateEmbedding("hello world")
 // console.log(res2);
 
-
-*/

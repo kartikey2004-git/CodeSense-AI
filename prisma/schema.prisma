@@ -123,3 +123,13 @@ model Commit {
   // ai summary
   summary String
 }
+
+model AudioFile {
+  id        String   @id @default(uuid())
+  userId    String
+  bucket    String
+  key       String
+  mimeType  String
+  size      Int
+  createdAt DateTime @default(now())
+}

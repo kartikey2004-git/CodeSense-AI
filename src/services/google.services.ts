@@ -2,6 +2,7 @@ import { google } from "@ai-sdk/google";
 import { generateText, embed } from "ai";
 import { config } from "../config/google.config";
 import type { Document } from "@langchain/core/documents";
+import { GoogleGenAI } from "@google/genai";
 
 // now we use gemini AI for summarising our commit where we pass diff for particular commit hash
 
@@ -127,18 +128,38 @@ ${code}
   }
 
   async generateEmbedding(summary: string): Promise<number[]> {
-    try {
-      const model = google.textEmbedding("text-embedding-004");
+    if (!summary || summary.trim().length < 3) {
+      throw new Error("Text too short for embedding");
+    }
 
-      const result = await embed({
-        model,
-        value: summary,
+    const ai = new GoogleGenAI({
+      apiKey: config.googleApiKey,
+    });
+
+    try {
+      const response = await ai.models.embedContent({
+        model: "gemini-embedding-001",
+        contents: summary,
+        config: {
+          outputDimensionality: 768,
+        },
       });
 
-      return result.embedding;
+      const embedding = response.embeddings?.[0]?.values;
+
+      console.log(response.embeddings?.length);
+
+      if (!Array.isArray(embedding) || embedding.length === 0) {
+        throw new Error("Empty embedding returned from Gemini");
+      }
+
+      return embedding;
     } catch (error) {
-      console.log("Error in generating Summaries");
-      return [];
+      console.error("Embedding generation failed:", {
+        input: summary.slice(0, 100),
+        error,
+      });
+      throw error;
     }
   }
 }
