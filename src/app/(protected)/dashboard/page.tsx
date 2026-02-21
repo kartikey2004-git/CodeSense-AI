@@ -11,7 +11,7 @@ import ArchiveButton from "./archive-button";
 import InviteButton from "./invite-button";
 import TeamMembers from "./team-members";
 import useProject from "@/hooks/use-project";
-import { CreateProjectModal } from "@/components/subcomponents/CreateProjectModal";
+import { CreateProjectModal } from "@/components/createProjectModal";
 
 const Dashboard = () => {
   const { project } = useProject();
