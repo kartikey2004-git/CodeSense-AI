@@ -45,6 +45,8 @@ model Project {
   commits              Commit[]
   sourceCodeEmbeddings SourceCodeEmbedding[]
   savedQuestions       Question[]
+
+  meetings Meeting[]
 }
 
 // Bridging Model for creating relationships between User To Project means A project have multiple users and A user can be a part of multiple projects - Many to Many relationship
@@ -132,4 +134,39 @@ model AudioFile {
   mimeType  String
   size      Int
   createdAt DateTime @default(now())
+}
+
+model Meeting {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  name       String
+  meetingUrl String // storage url
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id])
+
+  status MeetingStatus @default(PROCESSING)
+  issues Issue[]
+}
+
+model Issue {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  start    String
+  end      String
+  gist     String
+  headline String
+  summary  String
+
+  meetingId String
+  meeting   Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+}
+
+enum MeetingStatus {
+  PROCESSING
+  COMPLETED
 }

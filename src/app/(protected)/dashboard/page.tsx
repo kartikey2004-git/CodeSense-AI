@@ -9,6 +9,9 @@ import { Button } from "@/components/ui/button";
 import CreateProjectModal from "@/components/subcomponents/CreateProjectModal";
 import AskQuestionCard from "./ask-question-card";
 import Uploader from "./uploader";
+import ArchiveButton from "./archive-button";
+import InviteButton from "./invite-button";
+import TeamMembers from "./team-members";
 
 const Dashboard = () => {
   const { project } = useProject();
@@ -47,7 +50,7 @@ const Dashboard = () => {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-y-4">
-        {/* github link */}
+        {/* Github Link */}
         <div className="bg-primary w-fit rounded-md px-4 py-3">
           <div className="flex items-center">
             <Github className="size-5 text-white" />
@@ -69,15 +72,15 @@ const Dashboard = () => {
         <div className="h-4"></div>
 
         <div className="flex items-center gap-4">
-          {/* - TeamMembers - Invite button inside team members dropdown - Archive
-          button for particular github project */}
+          <TeamMembers />
+          <InviteButton />
+          <ArchiveButton />
         </div>
       </div>
 
       <div className="mt-4">
         <div className="grid grid-cols-2 gap-4">
           <AskQuestionCard />
-          {/* <MeetingCard /> */}
           <Uploader />
         </div>
       </div>
@@ -91,4 +94,4 @@ export default Dashboard;
 
 // now we create relations within our database to link projects and questions with this user
 
-// this allows us to actually to be more flexible with our realtional data modelling
+// this allows us to actually to be more flexible with our relational data modelling

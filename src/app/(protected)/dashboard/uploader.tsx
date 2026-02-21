@@ -7,11 +7,36 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Loader2, Trash2, FileMusic } from "lucide-react";
+import { api } from "@/trpc/react";
+import useProject from "@/hooks/use-project";
+import { useRouter } from "next/navigation";
+import { useMutation } from "@tanstack/react-query";
+import axios from "axios";
 
 const MAX_FILES = 5;
 const MAX_SIZE = 1024 * 1024 * 50; // 50 MB for audio files
 
 const Uploader = () => {
+  const { project } = useProject();
+
+  const processMeeting = useMutation({
+    mutationFn: async (data: {
+      meetingUrl: string;
+      meetingId: string;
+      projectId: string;
+    }) => {
+      const { meetingUrl, meetingId, projectId } = data;
+      const response = await axios.post("/api/process-meeting", {
+        meetingUrl,
+        meetingId,
+        projectId,
+      });
+
+      return response.data;
+    },
+  });
+
+  const router = useRouter();
   const [files, setFiles] = useState<
     Array<{
       id: string; // unique identifier
@@ -24,6 +49,8 @@ const Uploader = () => {
       objectURL?: string; // object URL for previewing the file image while uploading to bucket s3
     }>
   >([]);
+
+  const uploadMeeting = api.project.uploadMeeting.useMutation();
 
   async function removeFile(fileId: string) {
     try {
@@ -263,6 +290,33 @@ const Uploader = () => {
             const data = await res.json();
             console.log("complete api response:", data);
 
+            const url = `https://audios.t3.storage.dev/${data.audioKey}`;
+
+            if (!project) return;
+
+            uploadMeeting.mutate(
+              {
+                projectId: project.id,
+                meetingUrl: url,
+                name: file.name,
+              },
+              {
+                onSuccess: (meeting) => {
+                  toast.success("Meeting uploaded successfully");
+                  router.push("/meetings");
+
+                  processMeeting.mutateAsync({
+                    meetingUrl: url,
+                    meetingId: meeting.id,
+                    projectId: project.id,
+                  });
+                },
+                onError: () => {
+                  toast.error("Failed to upload meeting");
+                },
+              },
+            );
+
             // update the file status , progress to 100% and set uploading to false
 
             setFiles((prevFiles) =>
@@ -311,36 +365,39 @@ const Uploader = () => {
 
   // Runs when files are ACCEPTED for accepting single or multiple files upload
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    // Handle accepted files
-    // console.log(acceptedFiles);
+  const onDrop = useCallback(
+    (acceptedFiles: File[]) => {
+      // Handle accepted files
+      // console.log(acceptedFiles);
 
-    if (acceptedFiles.length > 0) {
-      // Here we are adding the newly accepted files to the files state array.
+      if (acceptedFiles.length > 0) {
+        // Here we are adding the newly accepted files to the files state array.
 
-      // For each file, we are creating a new object with properties for the file itself, the uploading status, progress, and more.
+        // For each file, we are creating a new object with properties for the file itself, the uploading status, progress, and more.
 
-      setFiles((prevFiles) => [
-        ...prevFiles, // Keep the existing files along with the newly accepted files
+        setFiles((prevFiles) => [
+          ...prevFiles, // Keep the existing files along with the newly accepted files
 
-        ...acceptedFiles.map((file) => ({
-          id: uuidV4(), // generate a simple unique id
-          file: file,
-          uploading: false, // Initially, the file is not uploading
-          progress: 0, // Initially, the progress is 0
-          isDeleting: false, // Initially, the file is not being deleted
-          error: false, // Initially, there is no error
-          objectURL: URL.createObjectURL(file), // Create a local blob URL for the file to actually display it in the user interface
-        })),
-      ]);
-    }
+          ...acceptedFiles.map((file) => ({
+            id: uuidV4(), // generate a simple unique id
+            file: file,
+            uploading: false, // Initially, the file is not uploading
+            progress: 0, // Initially, the progress is 0
+            isDeleting: false, // Initially, the file is not being deleted
+            error: false, // Initially, there is no error
+            objectURL: URL.createObjectURL(file), // Create a local blob URL for the file to actually display it in the user interface
+          })),
+        ]);
+      }
 
-    // benefit of objectUrl or creating a blob objectURL is that we won't re-render the image anymore
+      // benefit of objectUrl or creating a blob objectURL is that we won't re-render the image anymore
 
-    // If we could rendering the image from the server, it would be re-rendered every time the component re-renders or progress changes
+      // If we could rendering the image from the server, it would be re-rendered every time the component re-renders or progress changes
 
-    acceptedFiles.forEach(uploadFile);
-  }, []);
+      acceptedFiles.forEach(uploadFile);
+    },
+    [uploadFile],
+  );
 
   // Runs when files are REJECTED
   const onDropRejected = useCallback((rejectionFiles: FileRejection[]) => {
@@ -463,16 +520,14 @@ const Uploader = () => {
             </p>
           ) : (
             <>
-              <p className="text-base font-medium">
-                Drag & drop your files here
-              </p>
+              <p className="text-base font-medium">Create a new meeting</p>
 
               <p className="text-muted-foreground text-sm">
-                or click to browse from your device
+                Analyse your meeting with CodeSense powered by AI.
               </p>
 
               <Button size="sm" className="mt-2 rounded-md px-6">
-                Select Files
+                Select Meeting
               </Button>
             </>
           )}
