@@ -2,6 +2,7 @@ import React from "react";
 import WorldMap from "@/components/ui/world-map";
 import { Button } from "@/components/ui/button";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { FEATURES, testimonials } from "@/lib/data/data";
 import { BarChart3, Layout, Settings } from "lucide-react";
 
@@ -47,12 +48,12 @@ const Home = () => {
             </p>
 
             <div className="flex items-center gap-4">
-              <Button
+              <Link
+                href="/sign-in"
                 className="group flex items-center gap-2 rounded-sm bg-black px-6 py-3 font-medium text-white transition-all hover:scale-105 hover:bg-gray-900 active:scale-95"
-                onClick={() => redirect("/sign-in")}
               >
                 Get Started
-              </Button>
+              </Link>
 
               <div className="flex items-center gap-2 text-sm text-gray-700">
                 <span>backed by</span>
