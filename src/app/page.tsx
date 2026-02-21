@@ -1,5 +1,5 @@
 import React from "react";
-import Features from "@/components/subcomponents/Features"
+import Features from "@/components/subcomponents/Features";
 import Hero from "@/components/subcomponents/Hero";
 import Testimonials from "@/components/subcomponents/Testimonials";
 
