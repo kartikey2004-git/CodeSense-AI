@@ -120,10 +120,11 @@ const Uploader = () => {
 
   // where File is native file object from the web browser API
 
-  async function uploadFile(file: File) {
-    // console.log("Uploading file:", file);
+  const uploadFile = useCallback(
+    async (file: File) => {
+      // console.log("Uploading file:", file);
 
-    /*
+      /*
 
     - prevFiles are all of items present in the files array and now we are updating the state of the files array to indicate that the individual file is currently being uploaded. 
     
@@ -131,14 +132,14 @@ const Uploader = () => {
 
     */
 
-    setFiles((prev) =>
-      prev.map((item) =>
-        item.file === file ? { ...item, uploading: true } : item,
-      ),
-    );
+      setFiles((prev) =>
+        prev.map((item) =>
+          item.file === file ? { ...item, uploading: true } : item,
+        ),
+      );
 
-    try {
-      /*
+      try {
+        /*
 
       - POST request to the "/api/s3/upload" endpoint on the server.
 
@@ -148,41 +149,41 @@ const Uploader = () => {
       
       */
 
-      const presignedUrlResponse = await fetch("/api/s3/upload", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          // The file's name (e.g. "my_file.txt")
-          fileName: file.name,
-          // The file's content type (e.g. "text/plain")
-          contentType: file.type,
-          // The file's size in bytes
-          size: file.size,
-        }),
-      });
+        const presignedUrlResponse = await fetch("/api/s3/upload", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            // The file's name (e.g. "my_file.txt")
+            fileName: file.name,
+            // The file's content type (e.g. "text/plain")
+            contentType: file.type,
+            // The file's size in bytes
+            size: file.size,
+          }),
+        });
 
-      // Check if the response is ok
-      if (!presignedUrlResponse.ok) {
-        toast.error("Failed to get Presigned URL");
+        // Check if the response is ok
+        if (!presignedUrlResponse.ok) {
+          toast.error("Failed to get Presigned URL");
 
-        // Reset the file state to indicate that the upload failed
+          // Reset the file state to indicate that the upload failed
 
-        setFiles((prevFiles) =>
-          prevFiles.map((item) =>
-            item.file === file
-              ? { ...item, uploading: false, progress: 0, error: true }
-              : item,
-          ),
-        );
+          setFiles((prevFiles) =>
+            prevFiles.map((item) =>
+              item.file === file
+                ? { ...item, uploading: false, progress: 0, error: true }
+                : item,
+            ),
+          );
 
-        return;
-      }
+          return;
+        }
 
-      // Extract the presigned URL and key from the response
+        // Extract the presigned URL and key from the response
 
-      const { presignedUrl, key } = await presignedUrlResponse.json();
+        const { presignedUrl, key } = await presignedUrlResponse.json();
 
-      /*
+        /*
       
       - Now we are using the presigned URL to upload the file directly to S3.
 
@@ -227,141 +228,143 @@ const Uploader = () => {
   
       */
 
-      // Create a Promise-based wrapper for XMLHttpRequest : this allows us to use async/await similar syntax with XMLHttpRequest
+        // Create a Promise-based wrapper for XMLHttpRequest : this allows us to use async/await similar syntax with XMLHttpRequest
 
-      await new Promise<void>((resolve, reject) => {
-        // intialize new XMLHttpRequest
-        const xhr = new XMLHttpRequest();
+        await new Promise<void>((resolve, reject) => {
+          // intialize new XMLHttpRequest
+          const xhr = new XMLHttpRequest();
 
-        // event to track upload progress
+          // event to track upload progress
 
-        // onprogress callback exposes the event handler , this event fires periodically during the upload (or as we send data from client to server)
+          // onprogress callback exposes the event handler , this event fires periodically during the upload (or as we send data from client to server)
 
-        // In this case , send our file to s3 bucket
+          // In this case , send our file to s3 bucket
 
-        xhr.upload.onprogress = (event) => {
-          // check if the event length is computable or not
+          xhr.upload.onprogress = (event) => {
+            // check if the event length is computable or not
 
-          if (event.lengthComputable) {
-            // calculate the percentage of the upload
-            const percentageCompleted = (event.loaded / event.total) * 100;
+            if (event.lengthComputable) {
+              // calculate the percentage of the upload
+              const percentageCompleted = (event.loaded / event.total) * 100;
 
-            // update the progress of the file
-            setFiles((prevFiles) =>
-              prevFiles.map((item) =>
-                item.file === file
-                  ? {
-                      ...item,
-                      progress: Math.round(percentageCompleted),
-                      key: key,
-                    }
-                  : item,
-              ),
-            );
-          }
-        };
+              // update the progress of the file
+              setFiles((prevFiles) =>
+                prevFiles.map((item) =>
+                  item.file === file
+                    ? {
+                        ...item,
+                        progress: Math.round(percentageCompleted),
+                        key: key,
+                      }
+                    : item,
+                ),
+              );
+            }
+          };
 
-        // event to track upload completion
-        // onload event fires when the upload is complete
+          // event to track upload completion
+          // onload event fires when the upload is complete
 
-        xhr.onload = async () => {
-          if (xhr.status == 200 || xhr.status == 204) {
-            // notify to server
+          xhr.onload = async () => {
+            if (xhr.status == 200 || xhr.status == 204) {
+              // notify to server
 
-            console.log("Upload done, calling /api/audio/complete", {
-              key,
-              bucket: process.env.NEXT_PUBLIC_S3_BUCKET_NAME,
-              mimeType: file.type,
-              size: file.size,
-            });
-
-            const res = await fetch("/api/audio/db/upload", {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({
-                key, // jo server ne diya tha
+              console.log("Upload done, calling /api/audio/complete", {
+                key,
+                bucket: process.env.NEXT_PUBLIC_S3_BUCKET_NAME,
                 mimeType: file.type,
                 size: file.size,
-              }),
-            });
+              });
 
-            console.log("complete api status:", res.status);
+              const res = await fetch("/api/audio/db/upload", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({
+                  key, // jo server ne diya tha
+                  mimeType: file.type,
+                  size: file.size,
+                }),
+              });
 
-            const data = await res.json();
-            console.log("complete api response:", data);
+              console.log("complete api status:", res.status);
 
-            const url = `https://audios.t3.storage.dev/${data.audioKey}`;
+              const data = await res.json();
+              console.log("complete api response:", data);
 
-            if (!project) return;
+              const url = `https://audios.t3.storage.dev/${data.audioKey}`;
 
-            uploadMeeting.mutate(
-              {
-                projectId: project.id,
-                meetingUrl: url,
-                name: file.name,
-              },
-              {
-                onSuccess: (meeting) => {
-                  toast.success("Meeting uploaded successfully");
-                  router.push("/meetings");
+              if (!project) return;
 
-                  processMeeting.mutateAsync({
-                    meetingUrl: url,
-                    meetingId: meeting.id,
-                    projectId: project.id,
-                  });
+              uploadMeeting.mutate(
+                {
+                  projectId: project.id,
+                  meetingUrl: url,
+                  name: file.name,
                 },
-                onError: () => {
-                  toast.error("Failed to upload meeting");
+                {
+                  onSuccess: (meeting) => {
+                    toast.success("Meeting uploaded successfully");
+                    router.push("/meetings");
+
+                    processMeeting.mutateAsync({
+                      meetingUrl: url,
+                      meetingId: meeting.id,
+                      projectId: project.id,
+                    });
+                  },
+                  onError: () => {
+                    toast.error("Failed to upload meeting");
+                  },
                 },
-              },
-            );
+              );
 
-            // update the file status , progress to 100% and set uploading to false
+              // update the file status , progress to 100% and set uploading to false
 
-            setFiles((prevFiles) =>
-              prevFiles.map((item) =>
-                item.file === file
-                  ? { ...item, progress: 100, uploading: false, error: false }
-                  : item,
-              ),
-            );
+              setFiles((prevFiles) =>
+                prevFiles.map((item) =>
+                  item.file === file
+                    ? { ...item, progress: 100, uploading: false, error: false }
+                    : item,
+                ),
+              );
 
-            toast.success("File uploaded successfully");
+              toast.success("File uploaded successfully");
 
-            resolve();
-          } else {
-            reject(new Error(`Upload failed with status: ${xhr.status}`));
-          }
-        };
+              resolve();
+            } else {
+              reject(new Error(`Upload failed with status: ${xhr.status}`));
+            }
+          };
 
-        xhr.onerror = () => {
-          reject(new Error("Upload failed"));
-        };
+          xhr.onerror = () => {
+            reject(new Error("Upload failed"));
+          };
 
-        // open the connection or intialize the request to s3 bucket with PUT method using the presigned URL
+          // open the connection or intialize the request to s3 bucket with PUT method using the presigned URL
 
-        xhr.open("PUT", presignedUrl);
+          xhr.open("PUT", presignedUrl);
 
-        // set the content type of the request : we have to pass content type of the file because in putobjectCommand we are passing the content type
+          // set the content type of the request : we have to pass content type of the file because in putobjectCommand we are passing the content type
 
-        xhr.setRequestHeader("Content-Type", file.type);
+          xhr.setRequestHeader("Content-Type", file.type);
 
-        // send the file to s3 bucket
-        xhr.send(file);
-      });
-    } catch (error) {
-      toast.error("Upload Failed");
+          // send the file to s3 bucket
+          xhr.send(file);
+        });
+      } catch (error) {
+        toast.error("Upload Failed");
 
-      setFiles((prevFiles) =>
-        prevFiles.map((item) =>
-          item.file === file
-            ? { ...item, uploading: false, progress: 0, error: true }
-            : item,
-        ),
-      );
-    }
-  }
+        setFiles((prevFiles) =>
+          prevFiles.map((item) =>
+            item.file === file
+              ? { ...item, uploading: false, progress: 0, error: true }
+              : item,
+          ),
+        );
+      }
+    },
+    [project, uploadMeeting, processMeeting, router],
+  );
 
   // Runs when files are ACCEPTED for accepting single or multiple files upload
 
