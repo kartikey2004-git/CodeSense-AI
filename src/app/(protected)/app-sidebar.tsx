@@ -1,6 +1,6 @@
 "use client";
 
-import CreateProjectModal from "@/components/subcomponents/create-project-modal";
+import { CreateProjectModal } from "@/components/subcomponents/CreateProjectModal";
 import { Button } from "@/components/ui/button";
 import {
   Sidebar,

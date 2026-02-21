@@ -14,7 +14,7 @@ type Props = {
   onClose: () => void;
 };
 
-const CreateProjectModal = ({ isOpen, onClose }: Props) => {
+export const CreateProjectModal = ({ isOpen, onClose }: Props) => {
   // Here we react-hook-form for managing forms in our app : because of Performant, flexible and extensible forms with easy-to-use validation.
 
   const { register, handleSubmit, reset } = useForm<FormInput>();
@@ -90,8 +90,6 @@ const CreateProjectModal = ({ isOpen, onClose }: Props) => {
     </Modal>
   );
 };
-
-export default CreateProjectModal;
 
 // now we are going to create trpc route handler to create the project
 

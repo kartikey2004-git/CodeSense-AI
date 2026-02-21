@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import useProject from "@/hooks/use-project";
 import { ExternalLink, Github } from "lucide-react";
 import Link from "next/link";
 import CommitLog from "./commit-log";
@@ -11,7 +10,8 @@ import Uploader from "./uploader";
 import ArchiveButton from "./archive-button";
 import InviteButton from "./invite-button";
 import TeamMembers from "./team-members";
-import CreateProjectModal from "@/components/subcomponents/create-project-modal";
+import useProject from "@/hooks/use-project";
+import { CreateProjectModal } from "@/components/subcomponents/CreateProjectModal";
 
 const Dashboard = () => {
   const { project } = useProject();
