@@ -6,12 +6,12 @@ import { ExternalLink, Github } from "lucide-react";
 import Link from "next/link";
 import CommitLog from "./commit-log";
 import { Button } from "@/components/ui/button";
-import CreateProjectModal from "@/components/subcomponents/CreateProjectModal";
 import AskQuestionCard from "./ask-question-card";
 import Uploader from "./uploader";
 import ArchiveButton from "./archive-button";
 import InviteButton from "./invite-button";
 import TeamMembers from "./team-members";
+import CreateProjectModal from "@/components/subcomponents/CreateProjectModal";
 
 const Dashboard = () => {
   const { project } = useProject();
