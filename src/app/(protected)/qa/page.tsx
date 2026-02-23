@@ -15,9 +15,11 @@ import Image from "next/image";
 import MDEditor from "@uiw/react-md-editor";
 import CodeReferences from "../dashboard/code-references";
 import type { FileReference } from "@/types/types";
+import { useTheme } from "next-themes";
 
 const QA = () => {
   const { projectId } = useProject();
+  const { resolvedTheme } = useTheme();
   const { data: questions } = api.project.getQuestions.useQuery({ projectId });
 
   // console.log(questions)
@@ -48,7 +50,7 @@ const QA = () => {
           return (
             <Fragment key={question.id}>
               <SheetTrigger onClick={() => setActiveIndex(index)}>
-                <div className="hover:bg-muted flex items-center gap-4 rounded-lg border bg-white p-4 shadow transition">
+                <div className="hover:bg-muted border-border bg-card flex items-center gap-4 rounded-lg border p-4 shadow-sm transition">
                   <Image
                     className="rounded-full"
                     height={30}
@@ -59,16 +61,16 @@ const QA = () => {
 
                   <div className="flex w-full flex-col text-left">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="line-clamp-1 text-lg font-medium text-gray-900">
+                      <p className="text-foreground line-clamp-1 text-lg font-medium">
                         {question.question}
                       </p>
 
-                      <span className="text-xs whitespace-nowrap text-gray-500">
+                      <span className="text-muted-foreground text-xs whitespace-nowrap">
                         {new Date(question.createdAt).toLocaleDateString()}
                       </span>
                     </div>
 
-                    <p className="line-clamp-2 text-sm text-gray-700">
+                    <p className="text-muted-foreground line-clamp-2 text-sm">
                       {question.answer}
                     </p>
                   </div>
@@ -83,13 +85,13 @@ const QA = () => {
       {activeQuestion && (
         <SheetContent className="overflow-y-auto sm:max-w-[80vw]">
           <SheetHeader className="space-y-4">
-            <SheetTitle className="line-clamp-1 text-lg font-medium text-gray-900">
+            <SheetTitle className="text-foreground line-clamp-1 text-lg font-medium">
               Q. {activeQuestion.question}
             </SheetTitle>
-            <div data-color-mode="dark">
+            <div data-color-mode={resolvedTheme === "dark" ? "dark" : "light"}>
               <MDEditor.Markdown
                 source={activeQuestion.answer}
-                className="p-4"
+                className="markdown-pro"
               />
             </div>
 

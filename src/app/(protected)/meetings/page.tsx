@@ -33,7 +33,7 @@ const MeetingsPage = () => {
       <h1 className="text-xl font-semibold">Meetings</h1>
       {meetings && meetings.length === 0 && <div>No meetings found</div>}
       {isLoading && <div>Loading...</div>}
-      <ul className="divide-y divide-gray-200">
+      <ul className="divide-border divide-y">
         {meetings?.map((meeting) => {
           return (
             <li
@@ -56,7 +56,7 @@ const MeetingsPage = () => {
                   </div>
                 </div>
 
-                <div className="mt-2 flex items-center gap-x-2 text-xs text-gray-500">
+                <div className="text-muted-foreground mt-2 flex items-center gap-x-2 text-xs">
                   <p className="whitespace-nowrap">
                     {meeting.createdAt.toLocaleDateString()}
                   </p>
@@ -84,7 +84,7 @@ const MeetingsPage = () => {
                       },
                     );
                   }}
-                  variant={"destructive"}
+                  variant={"outline"}
                 >
                   {deleteMeeting.isPending ? (
                     <div className="flex items-center space-x-1">

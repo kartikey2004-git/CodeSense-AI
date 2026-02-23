@@ -25,13 +25,13 @@ const InviteButton = () => {
             <DialogTitle>Invite Team Members</DialogTitle>
           </DialogHeader>
 
-          <p className="text-sm text-gray-500">
+          <p className="text-muted-foreground text-sm">
             Ask them to copy and paste this link
           </p>
 
           <div className="flex items-center justify-between">
             <Input
-              className="flex-grow"
+              className="grow"
               readOnly
               value={`${window.location.origin}/join/${projectId}`}
             />

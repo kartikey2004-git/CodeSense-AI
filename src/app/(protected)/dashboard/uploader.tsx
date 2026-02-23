@@ -499,8 +499,8 @@ const Uploader = () => {
         className={cn(
           "relative h-64 w-full cursor-pointer border-2 border-dashed transition-colors duration-200 ease-in-out",
           isDragActive
-            ? "border-blue-500 bg-blue-500/10 ring-2 ring-blue-500/30"
-            : "border-gray-300",
+            ? "border-primary bg-primary/10 ring-primary/30 ring-2"
+            : "border-border",
         )}
       >
         <CardContent className="flex h-full flex-col items-center justify-center text-center">
@@ -550,7 +550,7 @@ const Uploader = () => {
                 className="w-full max-w-full rounded-md"
               />
 
-              <div className="pointer-events-none absolute inset-0 bg-black/30 opacity-0 transition group-hover:opacity-100" />
+              <div className="bg-foreground/20 pointer-events-none absolute inset-0 opacity-0 transition group-hover:opacity-100" />
 
               <Button
                 variant="destructive"
@@ -567,11 +567,11 @@ const Uploader = () => {
               </Button>
 
               {file.uploading && !file.isDeleting && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/50 backdrop-blur-sm">
-                  <p className="text-sm font-medium text-white">
+                <div className="bg-foreground/50 absolute inset-0 flex flex-col items-center justify-center gap-2 backdrop-blur-sm">
+                  <p className="text-primary-foreground text-sm font-medium">
                     Uploading {file.progress}%
                   </p>
-                  <div className="h-1.5 w-28 overflow-hidden rounded-full bg-white/20">
+                  <div className="bg-background/20 h-1.5 w-28 overflow-hidden rounded-full">
                     <div
                       className="bg-primary h-full transition-all"
                       style={{ width: `${file.progress}%` }}

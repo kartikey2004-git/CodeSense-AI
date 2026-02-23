@@ -48,18 +48,18 @@ const Dashboard = () => {
   }
 
   return (
-    <div>
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-y-4">
         {/* Github Link */}
-        <div className="bg-primary w-fit rounded-md px-4 py-3">
+        <div className="bg-primary text-primary-foreground w-fit rounded-md px-4 py-3">
           <div className="flex items-center">
-            <Github className="size-5 text-white" />
+            <Github className="size-5" />
             <div className="ml-2">
-              <p className="text-sm font-medium text-white">
+              <p className="text-sm font-medium">
                 This project is linked to {""}
                 <Link
                   href={project?.githubUrl ?? ""}
-                  className="inline-flex items-center text-white/80 hover:underline"
+                  className="text-primary-foreground/80 inline-flex items-center hover:underline"
                 >
                   {project?.githubUrl}
                   <ExternalLink className="ml-1 size-4" />
@@ -78,13 +78,12 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="mt-4">
+      <div>
         <div className="grid grid-cols-2 gap-4">
           <AskQuestionCard />
           <Uploader />
         </div>
       </div>
-      <div className="mt-8"></div>
       <CommitLog />
     </div>
   );

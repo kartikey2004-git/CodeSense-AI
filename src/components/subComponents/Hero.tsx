@@ -1,71 +1,53 @@
 "use client";
 
 import React from "react";
-import { Button } from "@/components/ui/button";
 import WorldMap from "@/components/ui/world-map";
-import { redirect } from "next/navigation";
-
+import Link from "next/link";
 
 const Hero = () => {
   return (
-    <>
-      {/* Light grid background */}
-      <div className="absolute inset-0 opacity-15">
-        <div
-          className="h-full w-full"
-          style={{
-            backgroundImage: `
-          linear-gradient(rgba(0,0,0,0.06) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(0,0,0,0.06) 1px, transparent 1px)
-        `,
-            backgroundSize: "50px 50px",
-          }}
-        />
-      </div>
-
-      <div className="relative z-10 mx-auto mb-20 flex max-w-7xl flex-col items-center gap-12 bg-white px-6 py-16 pt-20 md:flex-row md:gap-8 lg:px-8 mt-32">
-        {/* LEFT */}
+    <section className="relative overflow-hidden pb-10">
+      <div className="app-container relative z-10 flex flex-col items-center gap-10 pt-10 pb-12 md:flex-row md:gap-8 md:pt-16">
         <div className="w-full md:w-1/2">
-          <h1
-            className={`mb-8 text-4xl leading-tight font-light tracking-tighter md:text-5xl`}
-          >
-            <span className="font-light text-black">CodeSense AI</span>
+          <h1 className="mb-6 text-3xl leading-tight font-semibold tracking-tight sm:text-4xl md:text-5xl">
+            <span>CodeSense AI</span>
             <br />
-            <span className="text-gray-800">Power tool for Developers</span>
+            <span className="text-muted-foreground">
+              Power tool for Developers
+            </span>
           </h1>
 
           <div className="relative mb-8">
-            <p className="inline-block rounded border border-gray-300 bg-white/80 px-4 py-2 text-sm text-gray-700 backdrop-blur-sm">
+            <p className="border-border bg-card/80 text-muted-foreground inline-block rounded-md border px-4 py-2 text-sm backdrop-blur-sm">
               Discover CodeSense AI
             </p>
           </div>
 
-          <p className="mb-12 max-w-md text-sm leading-relaxed text-gray-700">
+          <p className="text-muted-foreground mb-10 max-w-md text-sm sm:text-base">
             CodeSense AI is a powerful platform designed to simplify developer
             collaboration that simplifies the process, streamlines code
             understanding, and enhances teamwork.
           </p>
 
           <div className="flex items-center gap-4">
-            <Button
-              className="group flex items-center gap-2 rounded-sm bg-black px-6 py-3 font-medium text-white transition-all hover:scale-105 hover:bg-gray-900 active:scale-95"
-              onClick={() => redirect("/sign-in")}
+            <Link
+              href="/sign-in"
+              className="bg-primary text-primary-foreground inline-flex items-center gap-2 rounded-md px-6 py-3 text-sm font-medium transition hover:opacity-90"
             >
               Get Started
-            </Button>
+            </Link>
 
-            <div className="flex items-center gap-2 text-sm text-gray-700">
+            <div className="text-muted-foreground flex items-center gap-2 text-sm">
               <span>backed by</span>
-              <div className="rounded bg-orange-500 px-2 py-1 text-xs text-white">
+              <div className="border-border bg-card text-foreground rounded-md border px-2 py-1 text-xs">
                 Peers
               </div>
             </div>
           </div>
         </div>
 
-        {/* RIGHT */}
         <div className="flex w-full justify-center md:w-1/2">
-          <div className="h-80 w-full rounded-xl">
+          <div className="h-72 w-full rounded-lg sm:h-80">
             <WorldMap
               dots={[
                 {
@@ -97,7 +79,7 @@ const Hero = () => {
           </div>
         </div>
       </div>
-    </>
+    </section>
   );
 };
 

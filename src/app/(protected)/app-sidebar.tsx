@@ -87,7 +87,8 @@ export function AppSideBar() {
                     <Link
                       href={item.url}
                       className={cn({
-                        "bg-primary! text-white!": pathname === item.url,
+                        "bg-primary! text-primary-foreground!":
+                          pathname === item.url,
                       })}
                     >
                       <item.icon />
@@ -115,9 +116,10 @@ export function AppSideBar() {
                     >
                       <div
                         className={cn(
-                          "text-primary flex size-6 items-center justify-center rounded-sm border bg-white p-2 text-sm",
+                          "text-primary border-border bg-card flex size-6 items-center justify-center rounded-md border p-2 text-sm",
                           {
-                            "bg-primary text-white": project.id === projectId,
+                            "bg-primary text-primary-foreground":
+                              project.id === projectId,
                           },
                         )}
                       >
@@ -135,7 +137,7 @@ export function AppSideBar() {
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
                     <Button
-                      className="flex items-center gap-2 border border-white/30 bg-white px-3 py-2 text-black shadow-md transition hover:bg-gray-100"
+                      className="border-border bg-card text-foreground hover:bg-accent flex items-center gap-2 border px-3 py-2 shadow-sm transition"
                       onClick={() => setIsOpen(true)}
                     >
                       <Plus className="h-4 w-4" />

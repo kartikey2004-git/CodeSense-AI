@@ -22,6 +22,7 @@ import { Download } from "lucide-react";
 import type { FileReference, SearchResult } from "@/types/types";
 import { detectLanguageFromFileName } from "@/lib/code-language-detector";
 import useRefetch from "@/hooks/use-refetch";
+import { useTheme } from "next-themes";
 
 const mapSearchResultsToFileReferences = (
   results: SearchResult[],
@@ -38,6 +39,7 @@ const mapSearchResultsToFileReferences = (
 
 const AskQuestionCard = () => {
   const { project } = useProject();
+  const { resolvedTheme } = useTheme();
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
 
@@ -118,9 +120,9 @@ const AskQuestionCard = () => {
         open={open}
         onOpenChange={(state) => !saveAnswer.isPending && setOpen(state)}
       >
-        <DialogContent className="max-h-[81vh] max-w-none min-w-[85vw] overflow-y-auto p-8">
+        <DialogContent className="max-h-[81vh] max-w-none min-w-[85vw] overflow-y-auto p-6 sm:p-8">
           <DialogHeader>
-            <div className="flex items-center justify-between border-b px-6 py-4">
+            <div className="border-border flex items-center justify-between border-b px-6 py-4">
               {/* Left: Title / Branding */}
               <DialogTitle className="flex items-center gap-3">
                 <Image
@@ -145,8 +147,11 @@ const AskQuestionCard = () => {
             </div>
           </DialogHeader>
 
-          <div data-color-mode="dark" className="px-6 py-4">
-            <MDEditor.Markdown source={answer} className="px-6 py-4" />
+          <div
+            data-color-mode={resolvedTheme === "dark" ? "dark" : "light"}
+            className="px-6 py-4"
+          >
+            <MDEditor.Markdown source={answer} className="markdown-pro" />
           </div>
 
           <div className="h-4"></div>
@@ -159,7 +164,7 @@ const AskQuestionCard = () => {
             )}
           </div>
 
-          <div className="flex justify-end border-t px-6 py-4">
+          <div className="border-border flex justify-end border-t px-6 py-4">
             <Button
               onClick={() => setOpen(false)}
               disabled={saveAnswer.isPending}

@@ -17,7 +17,7 @@ const ArchiveButton = () => {
     <Button
       disabled={archiveProject.isPending}
       size={"sm"}
-      variant={"destructive"}
+      variant={"outline"}
       onClick={() => {
         const confirm = window.confirm(
           "Are you sure you want to archive this project?",

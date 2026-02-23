@@ -29,26 +29,26 @@ const CommitLog = () => {
                   "absolute top-0 left-0 flex w-6 justify-center",
                 )}
               >
-                <div className="w-px translate-x-1 bg-gray-200"></div>
+                <div className="bg-border w-px translate-x-1"></div>
               </div>
 
               <>
                 <Image
                   src={commit.commitAuthorAvatar}
                   alt="commit avatar"
-                  className="relative mt-4 size-8 flex-none rounded-full bg-gray-50"
+                  className="bg-muted relative mt-4 size-8 flex-none rounded-full"
                   width={40}
                   height={40}
                 />
 
-                <div className="flex-auto rounded-md bg-white p-3 ring-1 ring-gray-200 ring-inset">
+                <div className="ring-border bg-card flex-auto rounded-md p-3 ring-1 ring-inset">
                   <div className="flex justify-between gap-x-4">
                     <Link
                       target="_blank"
                       href={`${project?.githubUrl}/commits/${commit.commitHash}`}
-                      className="py-0.5 text-xs leading-5 text-gray-500"
+                      className="text-muted-foreground py-0.5 text-xs leading-5"
                     >
-                      <span className="font-medium text-gray-800">
+                      <span className="text-foreground font-medium">
                         {commit.commitAuthorName}
                       </span>{" "}
                       <span className="inline-flex items-center">
@@ -58,7 +58,7 @@ const CommitLog = () => {
                     </Link>
                   </div>
                   <span className="font-semibold">{commit.commitMessage}</span>
-                  <pre className="mt-2 text-sm leading-6 whitespace-pre-wrap text-gray-600">
+                  <pre className="text-muted-foreground mt-2 text-sm leading-6 whitespace-pre-wrap">
                     {commit.summary}
                   </pre>
                 </div>

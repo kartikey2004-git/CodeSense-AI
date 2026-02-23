@@ -13,37 +13,37 @@ export const FEATURES: FeatureItem[] = [
     icon: FileText,
     title: "Automatic Code Documentation",
     text: "Dionysus generates detailed documentation across your entire codebase, making it easier to understand structure and intent.",
-    color: "text-red-600",
+    color: "text-primary",
   },
   {
     icon: Search,
     title: "Codebase Search",
     text: "Quickly locate any function, file, or component with fast, context-aware search built for developers.",
-    color: "text-blue-600",
+    color: "text-primary",
   },
   {
     icon: Zap,
     title: "Commit Message Summaries",
     text: "AI-powered summaries keep you updated on the latest changes without digging through raw commit logs.",
-    color: "text-yellow-600",
+    color: "text-primary",
   },
   {
     icon: Mic,
     title: "Meeting Transcription",
     text: "Dionysus converts your meetings into accurate transcripts with key topics and clear summaries.",
-    color: "text-green-600",
+    color: "text-primary",
   },
   {
     icon: History,
     title: "Real-Time Meeting Search",
     text: "Instant contextual search across all past meetings so you can find answers without rewatching long recordings.",
-    color: "text-purple-600",
+    color: "text-primary",
   },
   {
     icon: Users,
     title: "Collaborative Platform",
     text: "Teams can collaborate, explore documentation, review summaries, and interact with the entire knowledge layer together.",
-    color: "text-cyan-600",
+    color: "text-primary",
   },
 ];
 

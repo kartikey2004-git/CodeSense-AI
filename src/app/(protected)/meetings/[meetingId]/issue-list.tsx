@@ -38,15 +38,15 @@ const IssuesList = ({ meetingId }: Props) => {
       <div className="p-8">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-x-8 border-b pb-6 lg:mx-0 lg:max-w-none">
           <div className="flex items-center gap-x-6">
-            <div className="rounded-full border bg-white p-3">
+            <div className="border-border bg-card rounded-full border p-3">
               <VideoIcon className="h-6 w-6" />
             </div>
             <h1>
-              <div className="text-sm leading-6 text-gray-600">
+              <div className="text-muted-foreground text-sm leading-6">
                 Meeting on {""}
                 {meeting.createdAt.toLocaleDateString()}
               </div>
-              <div className="mt-1 text-base leading-6 font-semibold text-gray-700">
+              <div className="text-foreground mt-1 text-base leading-6 font-semibold">
                 {meeting.name}
               </div>
             </h1>
@@ -84,13 +84,13 @@ function IssueCard({
               {issue.createdAt.toLocaleDateString()}
             </DialogDescription>
 
-            <p className="text-gray-600">{issue.headline}</p>
+            <p className="text-muted-foreground">{issue.headline}</p>
 
-            <blockquote className="mt-2 border-l-4 border-gray-300 bg-white p-2">
-              <span className="blockquote-border text-sm text-gray-600">
+            <blockquote className="bg-muted border-border mt-2 border-l-4 p-2">
+              <span className="blockquote-border text-muted-foreground text-sm">
                 {issue.start} - {issue.end}
               </span>
-              <p className="leading-relaxed font-medium text-gray-900 italic">
+              <p className="text-foreground leading-relaxed font-medium italic">
                 {issue.summary}
               </p>
             </blockquote>
