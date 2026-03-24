@@ -38,6 +38,17 @@ model Project {
 
   name      String
   githubUrl String
+  status    String @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+
+  // Job status tracking fields
+
+  progress     Int       @default(0) // 0-100 percentage
+  currentStep  String? // Current processing step
+  errorMessage String? // Error message if failed
+  startedAt    DateTime? // When processing started
+  completedAt  DateTime? // When processing completed
+  jobId        String? // Current job ID
+  lastActivity DateTime  @default(now()) // For tracking stuck jobs
 
   deletedAt DateTime?
 
@@ -45,8 +56,45 @@ model Project {
   commits              Commit[]
   sourceCodeEmbeddings SourceCodeEmbedding[]
   savedQuestions       Question[]
+  meetings             Meeting[]
 
-  meetings Meeting[]
+  // Job status relationships
+  jobStatuses JobStatus[]
+
+  @@index([status])
+  @@index([jobId])
+  @@index([lastActivity])
+}
+
+// Job status tracking model
+model JobStatus {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  jobId     String // BullMQ job ID
+  queueName String // Name of the queue
+  jobType   String // Type of job (repo-indexing, webhook-processing, etc.)
+
+  status      String  @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  progress    Int     @default(0) // 0-100 percentage
+  currentStep String? // Current processing step
+  message     String? // Status message or error
+
+  startedAt   DateTime? // When job started processing
+  completedAt DateTime? // When job completed
+  failedAt    DateTime? // When job failed
+
+  metadata Json? // Additional job metadata
+
+  @@index([projectId])
+  @@index([jobId])
+  @@index([status])
+  @@index([queueName])
+  @@index([createdAt])
 }
 
 // Bridging Model for creating relationships between User To Project means A project have multiple users and A user can be a part of multiple projects - Many to Many relationship
@@ -66,10 +114,14 @@ model UserToProject {
   @@unique([userId, projectId]) // if we're a user we can only have a pairing of one unique userID , projectID : this the compound key that we are just creating
 }
 
-/**
- * - using pgvector to store embeddings and 768 is the dimension of the embedding because of the particular embedding model that gemini provides us with having 768 dimensions
- * - Unsupported is used because prisma does not support pgvector natively
- * - and we have to use Unsupported to define custom types and vector is the type provided by pgvector extension
+/*
+
+  - using pgvector to store embeddings and 768 is the dimension of the embedding because of the particular embedding model that gemini provides us with having 768 dimensions
+ 
+  - Unsupported is used because prisma does not support pgvector natively
+ 
+  - and we have to use Unsupported to define custom types and vector is the type provided by pgvector extension
+
  */
 
 // model/table to store source code embeddings
@@ -83,10 +135,23 @@ model SourceCodeEmbedding {
 
   summary String
 
+  // Chunk-level fields for improved embedding strategy
+  isChunked     Boolean @default(false) // Whether this uses chunked embeddings
+
+  chunkIndex    Int? // Index of this chunk within the file
+  totalChunks   Int? // Total number of chunks in this file
+  chunkContent  String? // Content of this specific chunk
+  chunkMetadata Json? // Metadata about this chunk (function name, etc.)
+  embeddingType String  @default("file") // "file" or "chunk"
+
   // all of embedding belongs for a particular project because one project related to one github repository and one repository generated a list of source code embeddings
 
   projectId String
   project   Project @relation(fields: [projectId], references: [id])
+
+  @@index([projectId, fileName]) // For efficient file-based queries
+  @@index([projectId, isChunked]) // For chunk vs file filtering
+  @@index([projectId, embeddingType]) // For embedding type filtering
 }
 
 model Question {
@@ -124,6 +189,8 @@ model Commit {
 
   // ai summary
   summary String
+
+  @@unique([projectId, commitHash], name: "projectId_commitHash") // Prevent duplicate commits
 }
 
 model AudioFile {
@@ -169,4 +236,5 @@ model Issue {
 enum MeetingStatus {
   PROCESSING
   COMPLETED
+  FAILED
 }

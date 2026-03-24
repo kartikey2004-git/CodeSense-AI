@@ -13,6 +13,14 @@ export type SearchResult = {
   fileName: string;
   sourceCode: string;
   summary: string;
+  // NEW: Chunk-related fields for improved search
+  chunkContent?: string;
+  chunkMetadata?: any;
+  isChunked?: boolean;
+  chunkIndex?: number;
+  totalChunks?: number;
+  // Similarity score from vector search
+  similarity: number;
 };
 
 export type FormInput = {

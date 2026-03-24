@@ -16,6 +16,9 @@ const config = {
       {
         hostname: "img.clerk.com",
       },
+      {
+        hostname:"github.com"
+      }
     ],
   },
 };

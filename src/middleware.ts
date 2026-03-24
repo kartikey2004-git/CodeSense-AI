@@ -4,12 +4,21 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
 // our public routes that don't require authentication which is sign-in page here
 
-const isPublicRoute = createRouteMatcher(["/sign-in(.*)","/"]); 
+const isPublicRoute = createRouteMatcher([
+  "/sign-in(.*)",
+  "/",
+  "/sync-user(.*)",
+  "/api/webhooks/github(.*)", // GitHub webhook endpoint
+  "/api/test(.*)", // Test endpoint
+  "/api/test-webhook(.*)", // Test webhook endpoint
+  "/api/test-commit-api(.*)", // Test commit API endpoint
+  "/api/debug-all(.*)", // Debug endpoint
+  "/api/debug-commits(.*)", // Debug commits endpoint
+]);
 
 // The clerkMiddleware helper enables authentication and is where you'll configure your protected routes.
 
 export default clerkMiddleware(async (auth, req) => {
-
   // Create a check to see if the user's current route is a public route.  If it is not a public route, use auth.protect() to protect the route.
 
   if (!isPublicRoute(req)) {

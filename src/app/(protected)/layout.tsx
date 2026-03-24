@@ -3,17 +3,40 @@ import { UserButton } from "@clerk/nextjs";
 import React from "react";
 import { AppSideBar } from "./app-sidebar";
 // import { StickyBanner } from "@/components/ui/sticky-banner";
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { db } from "@/server/db";
 
 type Props = {
   children: React.ReactNode;
 };
 
 const SidebarLayout = async ({ children }: Props) => {
-  const { sessionId } = await auth();
+  const { sessionId, userId } = await auth();
   if (!sessionId) redirect("/sign-in");
+
+  // Check if user exists in database, if not redirect to sync-user
+
+  if (userId) {
+    try {
+      const user = await db.user.findUnique({
+        where: { id: userId },
+        select: { id: true },
+      });
+
+      if (!user) {
+        console.log(
+          `User ${userId} not found in database, redirecting to sync-user`,
+        );
+        redirect("/sync-user");
+      }
+    } catch (error) {
+      console.error("Error checking user in database:", error);
+      // If we can't check the user, redirect to sync-user to be safe
+      redirect("/sync-user");
+    }
+  }
 
   return (
     <SidebarProvider>

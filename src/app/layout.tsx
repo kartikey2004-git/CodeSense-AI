@@ -8,6 +8,12 @@ import { TRPCReactProvider } from "@/trpc/react";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 
+// Redis warmup - runs during app startup
+import { warmupRedisConnection } from "@/lib/redis-warmup";
+
+// Initialize Redis connection
+warmupRedisConnection().catch(console.error);
+
 export const metadata: Metadata = {
   title: "CodeSense AI",
   description: "AI Github SAAS for devs",

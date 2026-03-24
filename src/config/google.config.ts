@@ -2,5 +2,6 @@ import "dotenv/config";
 
 export const config = {
   googleApiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY!,
-  model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+  model: process.env.GEMINI_MODEL || "gemini-3-flash-preview",
 };
+

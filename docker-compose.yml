@@ -1,13 +1,25 @@
-# YAML: Yet Another Markup Language
-# docker compose file for database
+version: "3.8"
 
-name: codesense
 services:
-  db:
-    image: postgres:latest
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: codesense-postgres
+    restart: always
     environment:
-      - POSTGRES_USER=kartikey
-      - POSTGRES_PASSWORD=npg_r6qsaYJDNI8z
-      - POSTGRES_DB=codesense
+      POSTGRES_USER: kartikey
+      POSTGRES_PASSWORD: npg_8twMdf6oLWxu
+      POSTGRES_DB: codesense
     ports:
-      - 5432:5432
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: codesense-redis
+    restart: always
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:

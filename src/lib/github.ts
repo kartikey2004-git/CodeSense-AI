@@ -2,11 +2,20 @@ import { db } from "@/server/db";
 import { Octokit } from "octokit";
 import axios from "axios";
 import { aiSummariseCommit } from "./gemini";
+import { shouldProcessCommit } from "./filtering";
 import type { Response } from "@/types/types";
 
 export const octokit = new Octokit({
   auth: process.env.GITHUB_TOKEN || undefined,
 });
+
+// Normalize GitHub URL for matching
+export const normalizeGithubUrl = (url: string): string => {
+  // Remove .git extension if present
+  const cleanUrl = url.replace(/\.git$/, "");
+  // Remove trailing slash if present
+  return cleanUrl.replace(/\/$/, "");
+};
 
 // we use github token to authenticate with github and increase our rate limit usage
 
@@ -16,25 +25,33 @@ export const getCommitHashes = async (
   githubUrl: string,
 ): Promise<Response[]> => {
   // get the owner and repo from particular github URL
-
   const [owner, repo] = githubUrl.split("/").slice(-2);
+  console.log(`Fetching commits for ${owner}/${repo}`);
 
   if (!owner || !repo) {
+    console.error(`  Invalid github url: ${githubUrl}`);
     throw new Error("Invalid github url");
   }
 
   try {
     // list commits from github repo using octokit
+    console.log(`Calling GitHub API for ${owner}/${repo}...`);
 
     const { data } = await octokit.rest.repos.listCommits({
       owner,
       repo,
     });
 
-    if (!Array.isArray(data)) return [];
+    console.log(
+      `GitHub API returned ${Array.isArray(data) ? data.length : 0} commits`,
+    );
+
+    if (!Array.isArray(data)) {
+      console.error(`  GitHub API returned non-array data:`, typeof data);
+      return [];
+    }
 
     // sort commits by date descending means latest commit first
-
     const sortedCommits = [...data].sort(
       (a: any, b: any) =>
         new Date(b.commit?.author?.date ?? 0).getTime() -
@@ -42,16 +59,26 @@ export const getCommitHashes = async (
     );
 
     // return top 3 latest commits for particular githubUrl
-
-    return sortedCommits.slice(0, 3).map((commit: any) => ({
+    const result = sortedCommits.slice(0, 3).map((commit: any) => ({
       commitHash: commit.sha ?? "",
       commitMessage: commit.commit?.message ?? "",
       commitAuthorName: commit.commit?.author?.name ?? "",
       commitAuthorAvatar: commit?.author?.avatar_url ?? "",
       commitDate: commit.commit?.author?.date ?? "",
     }));
+
+    console.log(`Processed ${result.length} commits for ${owner}/${repo}`);
+    return result;
   } catch (error) {
-    console.error("Failed to fetch commits:", error);
+    console.error(`  Failed to fetch commits for ${owner}/${repo}:`, error);
+    if (error instanceof Error && error.message.includes("404")) {
+      console.error(`  Repository ${owner}/${repo} not found or is private`);
+    }
+    if (error instanceof Error && error.message.includes("403")) {
+      console.error(
+        `  Rate limit exceeded or authentication failed for ${owner}/${repo}`,
+      );
+    }
     return [];
   }
 };
@@ -61,28 +88,45 @@ export const pollCommits = async (projectId: string) => {
     throw new Error("Project ID is required");
   }
 
-  // fetch githubUrl for particular project from database
+  console.log(`Starting commit polling for project: ${projectId}`);
 
+  // fetch githubUrl for particular project from database
   const { githubUrl } = await fetchProjectGithubUrl(projectId);
+  console.log(`Project GitHub URL: ${githubUrl}`);
 
   // get the list of last 10 latest commits from particular githubUrl
-
   const commitHashes = await getCommitHashes(githubUrl);
+  console.log(`Found ${commitHashes.length} commits from GitHub API`);
 
-  if (!commitHashes.length) return [];
+  if (!commitHashes.length) {
+    console.log(`    No commits found for project ${projectId}`);
+    return [];
+  }
+
+  console.log(
+    `Commit details:`,
+    commitHashes.map((c) => ({
+      hash: c.commitHash.substring(0, 7),
+      message: c.commitMessage.substring(0, 50),
+      author: c.commitAuthorName,
+      date: c.commitDate,
+    })),
+  );
 
   // then filter out the unprocessed commits from particular project
-
   //  unprocessed commits are those commits which are not present in our database yet
-
   // because we don't want to generate again summaries for already AI summarised commits
-
   const unprocessedCommits = await filterUnprocessedCommits(
     projectId,
     commitHashes,
   );
 
-  if (!unprocessedCommits.length) return [];
+  console.log(`Found ${unprocessedCommits.length} unprocessed commits`);
+
+  if (!unprocessedCommits.length) {
+    console.log(`All commits already processed for project ${projectId}`);
+    return [];
+  }
 
   // then we summarise each commit diff using generative AI for unprocessed commits only
 
@@ -170,6 +214,36 @@ async function summariseCommit(
   if (!githubUrl || !commitHash) return "";
 
   try {
+    // Get commit details first to check message and files
+    const urlParts = githubUrl.split("/").slice(-2);
+
+    if (urlParts.length < 2) {
+      console.error(`Invalid GitHub URL format: ${githubUrl}`);
+      return "";
+    }
+
+    const owner = urlParts[0]!;
+    const repo = urlParts[1]!;
+
+    const { data: commitData } = await octokit.rest.repos.getCommit({
+      owner,
+      repo,
+      ref: commitHash,
+    });
+
+    if (!commitData) return "";
+
+    const commitMessage = commitData.commit.message || "";
+    const allFiles = [...(commitData.files?.map((f) => f.filename) || [])];
+
+    // Apply filtering logic BEFORE expensive AI operations
+    if (!shouldProcessCommit(commitMessage, allFiles)) {
+      console.log(
+        `Skipping irrelevant commit ${commitHash}: ${commitMessage.substring(0, 50)}...`,
+      );
+      return `Commit: ${commitMessage} (auto-skipped: no relevant changes)`;
+    }
+
     const { data: diff } = await axios.get(
       `${githubUrl}/commit/${commitHash}.diff`,
       {

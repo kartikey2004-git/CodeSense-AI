@@ -25,7 +25,7 @@ type Props = {
 const CodeReferences = ({ filesReferences }: Props) => {
   const { resolvedTheme } = useTheme();
   const [tab, setTab] = useState<string | undefined>(
-    filesReferences?.[0]?.fileName,
+    filesReferences?.[0] ? `${filesReferences[0].fileName}-0` : undefined,
   );
 
   if (!filesReferences || filesReferences.length === 0) return null;
@@ -35,14 +35,14 @@ const CodeReferences = ({ filesReferences }: Props) => {
       <div className="border-border bg-card max-w-full rounded-xl border p-2">
         <Tabs value={tab} onValueChange={setTab}>
           <div className="bg-muted scrollbar-thin flex gap-2 overflow-x-auto overflow-y-hidden rounded-lg p-1.5">
-            {filesReferences.map((file) => (
+            {filesReferences.map((file, index) => (
               <Button
-                key={file.fileName}
+                key={`${file.fileName}-${index}`}
                 variant="ghost"
-                onClick={() => setTab(file.fileName)}
+                onClick={() => setTab(`${file.fileName}-${index}`)}
                 className={cn(
                   "text-md border-border rounded-md border px-3 py-1.5 font-normal whitespace-nowrap transition-colors",
-                  tab === file.fileName
+                  tab === `${file.fileName}-${index}`
                     ? "bg-primary text-primary-foreground hover:bg-primary"
                     : "bg-background text-foreground hover:bg-accent",
                 )}
@@ -53,7 +53,7 @@ const CodeReferences = ({ filesReferences }: Props) => {
           </div>
 
           {/* CODE VIEW */}
-          {filesReferences.map((file) => {
+          {filesReferences.map((file, index) => {
             const code =
               typeof file.sourceCode?.content === "string"
                 ? file.sourceCode.content
@@ -62,11 +62,12 @@ const CodeReferences = ({ filesReferences }: Props) => {
             const language = detectLanguageFromFileName(
               file.fileName || "text",
             );
+            const uniqueKey = `${file.fileName}-${index}`;
 
             return (
               <TabsContent
-                key={file.fileName}
-                value={file.fileName}
+                key={uniqueKey}
+                value={uniqueKey}
                 className="border-border bg-muted/35 mt-3 max-h-[70vh] min-w-[83vw] overflow-auto rounded-lg border"
               >
                 <SyntaxHighlighter
