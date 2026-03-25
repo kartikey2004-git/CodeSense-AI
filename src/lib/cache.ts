@@ -1,6 +1,11 @@
 import { createHash } from "crypto";
 import { getRedisClient } from "./redis";
 
+// Check if we're in build time
+const isBuildTime =
+  process.env.NEXT_PHASE === "phase-production-build" ||
+  process.env.NODE_ENV === "production";
+
 // Cache configuration
 const CACHE_CONFIG = {
   // TTL in seconds
@@ -55,6 +60,11 @@ export class CacheService {
 
   // Generic get method with JSON parsing and error handling
   async get<T>(key: string): Promise<T | null> {
+    // Skip cache during build time
+    if (isBuildTime || this.isBypassed()) {
+      return null;
+    }
+
     try {
       const client = await this.redis();
       const value = await client.get(key);
@@ -76,6 +86,11 @@ export class CacheService {
 
   // Generic set method with JSON serialization and TTL
   async set<T>(key: string, value: T, ttlSeconds?: number): Promise<void> {
+    // Skip cache during build time
+    if (isBuildTime || this.isBypassed()) {
+      return;
+    }
+
     try {
       const client = await this.redis();
       const serialized = JSON.stringify(value);
@@ -97,6 +112,11 @@ export class CacheService {
 
   // Delete specific key
   async delete(key: string): Promise<void> {
+    // Skip cache during build time
+    if (isBuildTime || this.isBypassed()) {
+      return;
+    }
+
     try {
       const client = await this.redis();
       await client.del(key);
@@ -110,6 +130,11 @@ export class CacheService {
 
   // Delete keys by pattern
   async deletePattern(pattern: string): Promise<void> {
+    // Skip cache during build time
+    if (isBuildTime || this.isBypassed()) {
+      return;
+    }
+
     try {
       const client = await this.redis();
       const keys = await client.keys(pattern);
@@ -129,6 +154,11 @@ export class CacheService {
 
   // Check if key exists
   async exists(key: string): Promise<boolean> {
+    // Skip cache during build time
+    if (isBuildTime || this.isBypassed()) {
+      return false;
+    }
+
     try {
       const client = await this.redis();
       const result = await client.exists(key);
@@ -142,6 +172,11 @@ export class CacheService {
 
   // Get TTL for key
   async getTTL(key: string): Promise<number> {
+    // Skip cache during build time
+    if (isBuildTime || this.isBypassed()) {
+      return -1;
+    }
+
     try {
       const client = await this.redis();
       return await client.ttl(key);
@@ -322,6 +357,11 @@ export class CacheService {
 
   // Health check method
   async healthCheck(): Promise<boolean> {
+    // Skip cache during build time
+    if (isBuildTime || this.isBypassed()) {
+      return false;
+    }
+
     try {
       const client = await this.redis();
       const testKey = "health:check";
@@ -337,6 +377,16 @@ export class CacheService {
 
   // Get cache statistics
   async getStats(): Promise<any> {
+    // Skip cache during build time
+    if (isBuildTime || this.isBypassed()) {
+      return {
+        connected: false,
+        disabled: true,
+        reason: isBuildTime ? "build time" : "bypass enabled",
+        metrics: { ...metrics },
+      };
+    }
+
     try {
       const client = await this.redis();
       const info = await client.info("memory");

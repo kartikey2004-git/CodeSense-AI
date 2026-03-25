@@ -6,13 +6,13 @@ const redisConfig = {
   port: parseInt(process.env.REDIS_PORT || "6379"),
   password: process.env.REDIS_PASSWORD,
   retryDelayOnFailover: 100,
-  maxRetriesPerRequest: 1, // Reduced to 1 for faster failure
+  maxRetriesPerRequest: 0, // Set to 0 to disable retries during build
   lazyConnect: true,
   enableOfflineQueue: false,
-  connectTimeout: 3000, // Reduced to 3s for very fast detection
-  commandTimeout: 2000, // Reduced to 2s for very fast timeout
+  connectTimeout: 1000, // Reduced to 1s for very fast detection during build
+  commandTimeout: 1000, // Reduced to 1s for very fast timeout during build
   retryDelayOnClusterDown: 300,
-  enableReadyCheck: true,
+  enableReadyCheck: false, // Disable ready check during build
   maxHeartbeatPerSecond: 5,
   // Docker-specific settings
   family: 4, // Force IPv4 for Docker compatibility
@@ -29,10 +29,18 @@ let connectionPromise: Promise<Redis> | null = null;
 // Circuit breaker state
 let redisAvailable = true;
 let lastConnectionAttempt = 0;
-const CONNECTION_COOLDOWN = 10000; // 10 seconds between failed attempts (reduced for development)
+const isBuildTime =
+  process.env.NEXT_PHASE === "phase-production-build" ||
+  process.env.NODE_ENV === "production";
+const CONNECTION_COOLDOWN = isBuildTime ? 1000 : 10000; // 1 second during build, 10 seconds normally
 
 // Get singleton Redis client (shared across entire app) with circuit breaker
 export const getRedisClient = async (): Promise<Redis> => {
+  // Skip Redis entirely during build time
+  if (isBuildTime) {
+    throw new Error("Redis disabled during build time");
+  }
+
   // Circuit breaker: don't try to reconnect if recently failed
   if (
     !redisAvailable &&
@@ -114,9 +122,10 @@ export const getRedisClient = async (): Promise<Redis> => {
 
       // Wait for connection with timeout
       await new Promise<void>((resolve, reject) => {
+        const timeoutMs = isBuildTime ? 500 : 2000; // 500ms during build, 2s normally
         const timeout = setTimeout(() => {
           reject(new Error("Redis connection timeout"));
-        }, 2000); // Reduced to 2 seconds for very fast detection
+        }, timeoutMs);
 
         const checkReady = () => {
           if (redisClient && redisClient.status === "ready") {
@@ -171,6 +180,12 @@ export const getRedisConnectionOptions = () => {
 
 // Health check for Redis with Docker diagnostics
 export const checkRedisHealth = async (): Promise<boolean> => {
+  // Skip health check during build time
+  if (isBuildTime) {
+    console.log("Skipping Redis health check during build time");
+    return false;
+  }
+
   try {
     console.log("Checking Redis health...");
     const client = await getRedisClient();

@@ -22,7 +22,10 @@ export default clerkMiddleware(async (auth, req) => {
   // Create a check to see if the user's current route is a public route.  If it is not a public route, use auth.protect() to protect the route.
 
   if (!isPublicRoute(req)) {
-    await auth.protect();
+    const authObject = await auth();
+    if (!authObject.userId) {
+      return authObject.redirectToSignIn();
+    }
   }
 });
 

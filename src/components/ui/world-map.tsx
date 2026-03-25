@@ -48,13 +48,14 @@ export default function WorldMap({
 
   return (
     <div className="bg-background border-border relative aspect-2/1 w-full rounded-lg border font-sans">
-      <img
+      <Image
         src={`data:image/svg+xml;utf8,${encodeURIComponent(svgMap)}`}
         className="pointer-events-none h-full w-full mask-[linear-gradient(to_bottom,transparent,white_10%,white_90%,transparent)] select-none"
         alt="world map"
-        height="495"
-        width="1056"
+        height={495}
+        width={1056}
         draggable={false}
+        unoptimized
       />
       <svg
         ref={svgRef}

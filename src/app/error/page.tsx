@@ -1,11 +1,20 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 export default function ErrorPage() {
+  return (
+    <Suspense fallback={<ErrorPageFallback />}>
+      <ErrorPageContent />
+    </Suspense>
+  );
+}
+
+function ErrorPageContent() {
   const searchParams = useSearchParams();
   const message = searchParams.get("message") || "An unexpected error occurred";
 
@@ -45,6 +54,21 @@ export default function ErrorPage() {
 
         <div className="text-muted-foreground text-xs">
           Error ID: {Date.now()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ErrorPageFallback() {
+  return (
+    <div className="bg-background flex min-h-screen items-center justify-center">
+      <div className="mx-auto max-w-md space-y-6 p-6 text-center">
+        <div className="space-y-2">
+          <h1 className="text-foreground text-4xl font-bold">
+            Something went wrong
+          </h1>
+          <p className="text-muted-foreground">Loading error details...</p>
         </div>
       </div>
     </div>

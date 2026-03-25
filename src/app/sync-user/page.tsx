@@ -2,6 +2,8 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/server/db";
 
+export const dynamic = "force-dynamic";
+
 export default async function SyncUserPage() {
   try {
     // The auth() helper returns the Auth object of the currently active user.
@@ -52,8 +54,8 @@ export default async function SyncUserPage() {
   } catch (error) {
     // Handle Next.js redirect errors - these are expected behavior
 
-    if (error instanceof Error && error.message === "NEXT_REDIRECT") {    
-      throw error; 
+    if (error instanceof Error && error.message === "NEXT_REDIRECT") {
+      throw error;
     }
 
     console.error("Failed to sync user:", error);
@@ -68,7 +70,7 @@ export default async function SyncUserPage() {
     }
 
     // For Clerk API errors, try to continue to dashboard
-    
+
     if (error instanceof Error && error.message.includes("Clerk")) {
       console.log(`Clerk API error, attempting to continue to dashboard`);
       return redirect("/dashboard");
