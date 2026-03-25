@@ -1,6 +1,7 @@
 // This middleware file is used to protect routes with Clerk authentication.
 
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import type { NextRequest } from "next/server";
 
 // our public routes that don't require authentication which is sign-in page here
 
@@ -18,7 +19,7 @@ const isPublicRoute = createRouteMatcher([
 
 // The clerkMiddleware helper enables authentication and is where you'll configure your protected routes.
 
-export default clerkMiddleware(async (auth, req) => {
+export default clerkMiddleware(async (auth, req: NextRequest) => {
   // Create a check to see if the user's current route is a public route.  If it is not a public route, use auth.protect() to protect the route.
 
   if (!isPublicRoute(req)) {
