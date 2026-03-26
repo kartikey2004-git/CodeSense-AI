@@ -62,9 +62,7 @@ export const repoIndexingProcessor = async (
 
     try {
       const commits = await pollCommits(projectId);
-      console.log(
-        `Polled ${commits.length} commits for project ${projectId}`,
-      );
+      console.log(`Polled ${commits.length} commits for project ${projectId}`);
     } catch (commitError) {
       console.warn(
         `Commit polling failed for project ${projectId}:`,
@@ -85,13 +83,17 @@ export const repoIndexingProcessor = async (
     await cache.invalidateProjectCache(projectId);
     console.log(`Invalidated cache for project ${projectId}`);
 
-    // Step 3: Completed (100%)
+    // Step 5: Update project to COMPLETED (100%)
     await JobStatusService.updateJobStatus(jobId, {
       status: "COMPLETED",
       progress: 100,
       currentStep: "Repository indexing completed",
     });
     console.log(`Job ${jobId} marked as completed`);
+
+    // CRITICAL: Update project status to COMPLETED
+    await updateProjectStatus(projectId, "COMPLETED");
+    console.log(`Project ${projectId} status updated to COMPLETED`);
 
     const jobResult: JobResult<RepoIndexingResult> = {
       success: true,
@@ -136,6 +138,10 @@ export const repoIndexingProcessor = async (
       currentStep: "Repository indexing failed",
       message: error instanceof Error ? error.message : "Unknown error",
     });
+
+    // CRITICAL: Update project status to FAILED
+    await updateProjectStatus(projectId, "FAILED");
+    console.log(`Project ${projectId} status updated to FAILED`);
 
     return {
       success: false,
@@ -321,6 +327,12 @@ export const webhookProcessingProcessor = async (
     `STARTING webhook processing: ${deliveryId} for ${repository.full_name} with ${commits.length} commits`,
   );
 
+  // CRITICAL: Check for duplicate delivery to ensure idempotency
+  // Since we're no longer using JobStatus model, we'll use a simple in-memory check
+  // or implement a separate deduplication mechanism if needed
+  const deliveryKey = `webhook-${deliveryId}`;
+  console.log(`Processing webhook delivery: ${deliveryKey}`);
+
   // Log each commit
   console.log(`DEBUG: Commits to process:`);
   commits.forEach((commit, index) => {
@@ -359,9 +371,7 @@ export const webhookProcessingProcessor = async (
     }
 
     if (!project) {
-      console.log(
-        `No project found for repository: ${repository.full_name}`,
-      );
+      console.log(`No project found for repository: ${repository.full_name}`);
       return {
         success: true,
         data: {

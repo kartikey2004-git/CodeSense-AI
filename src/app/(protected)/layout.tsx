@@ -26,14 +26,10 @@ const SidebarLayout = async ({ children }: Props) => {
       });
 
       if (!user) {
-        console.log(
-          `User ${userId} not found in database, redirecting to sync-user`,
-        );
         redirect("/sync-user");
       }
     } catch (error) {
       console.error("Error checking user in database:", error);
-      // If we can't check the user, redirect to sync-user to be safe
       redirect("/sync-user");
     }
   }

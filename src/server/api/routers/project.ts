@@ -8,7 +8,6 @@ import {
   migrateProjectToChunkedEmbeddings,
   getMigrationStats,
 } from "@/lib/migration";
-import { JobStatusService } from "@/lib/job-status";
 
 // create new routers and sub-routers in your tRPC API.
 
@@ -24,73 +23,77 @@ export const projectRouter = createTRPCRouter({
   createProject: protectedProcedure
     .input(
       z.object({
-        name: z.string(),
-        githubUrl: z.string(),
+        name: z.string().min(1).max(100),
+        githubUrl: z
+          .string()
+          .url()
+          .refine((url) => {
+            return url.includes("github.com");
+          }, "Must be a valid GitHub URL"),
         githubToken: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      console.log(`  Creating new project:`);
-      console.log(` Project name: ${input.name}`);
-      console.log(` GitHub URL: ${input.githubUrl}`);
-      console.log(` User ID: ${ctx.user.userId}`);
-      console.log(` GitHub token provided: ${!!input.githubToken}`);
-
       try {
-        // Use transaction for atomicity
-        const result = await ctx.db.$transaction(async (tx) => {
-          console.log(` Creating project in database...`);
-          const project = await tx.project.create({
+        const projectId = crypto.randomUUID();
+        const jobId = `repo-indexing-${projectId}-${Date.now()}`;
+
+        // Single transaction for project creation and job tracking
+        const project = await ctx.db.$transaction(async (tx) => {
+          const newProject = await tx.project.create({
             data: {
+              id: projectId,
               githubUrl: input.githubUrl,
               name: input.name,
+              status: "PENDING",
               userToProjects: {
-                create: {
-                  userId: ctx.user.userId!,
-                },
+                create: { userId: ctx.user.userId! },
               },
             },
           });
-          console.log(`Project created with ID: ${project.id}`);
 
-          return { project };
+          // Update project with job tracking info
+          await tx.project.update({
+            where: { id: projectId },
+            data: {
+              jobId,
+              status: "PROCESSING",
+              startedAt: new Date(),
+              lastActivity: new Date(),
+            },
+          });
+
+          return newProject;
         });
 
-        // Create JobStatus record AFTER transaction completes
-        const jobId = `repo-indexing-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        console.log(` Creating job status with ID: ${jobId}`);
-        await JobStatusService.createJobStatus({
-          projectId: result.project.id,
-          jobId,
-          queueName: "repo-indexing",
-          jobType: "repo-indexing",
-          metadata: { githubUrl: input.githubUrl },
-        });
-        console.log(`Job status created successfully`);
+        // Enqueue job with proper error handling
+        try {
+          await JobManager.enqueueRepoIndexing({
+            projectId: project.id,
+            githubUrl: input.githubUrl,
+            githubToken: input.githubToken,
+            jobId,
+          });
+        } catch (jobError) {
+          // Mark project as failed if job enqueue fails
+          await ctx.db.project.update({
+            where: { id: project.id },
+            data: {
+              status: "FAILED",
+              errorMessage: `Failed to enqueue job: ${jobError instanceof Error ? jobError.message : "Unknown error"}`,
+              completedAt: new Date(),
+            },
+          });
+          throw new Error(
+            `Failed to enqueue repository indexing job: ${jobError instanceof Error ? jobError.message : "Unknown error"}`,
+          );
+        }
 
-        // Enqueue repository indexing job with existing JobStatus
-        console.log(` Enqueuing repository indexing job...`);
-        await JobManager.enqueueRepoIndexing({
-          projectId: result.project.id,
-          githubUrl: input.githubUrl,
-          githubToken: input.githubToken,
-          jobId: jobId, // Pass the jobId we created
-        });
-        console.log(`Job enqueued successfully`);
-
-        console.log(`Project creation completed successfully`);
-        return result.project;
+        return project;
       } catch (error) {
-        console.error(`  Failed to create project:`, error);
-        console.error("Error details:", {
-          projectName: input.name,
-          githubUrl: input.githubUrl,
-          userId: ctx.user.userId,
-          errorMessage:
-            error instanceof Error ? error.message : "Unknown error",
-          errorStack: error instanceof Error ? error.stack : undefined,
-        });
-        throw error;
+        throw new Error(
+          `Failed to create project: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
       }
     }),
 
@@ -121,26 +124,11 @@ export const projectRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      console.log(` DEBUG: Dashboard getCommits query:`);
-      console.log(`  Project ID: ${input.projectId}`);
-
       // Webhooks now handle commit updates - return commits ordered by latest first
+
       const commits = await ctx.db.commit.findMany({
         where: { projectId: input.projectId },
         orderBy: { createdAt: "desc" },
-      });
-
-      console.log(`  Found commits: ${commits.length}`);
-      console.log(`  Commit details:`);
-      commits.forEach((commit, index) => {
-        console.log(
-          `    ${index + 1}. ${commit.commitHash.substring(0, 7)} - ${commit.commitMessage.substring(0, 50)}...`,
-        );
-        console.log(`       Author: ${commit.commitAuthorName}`);
-        console.log(`       Date: ${commit.commitDate}`);
-        console.log(
-          `       Summary: ${commit.summary?.substring(0, 100) || "No summary"}...`,
-        );
       });
 
       return commits;
@@ -295,16 +283,15 @@ export const projectRouter = createTRPCRouter({
   }),
 
   getCacheStats: protectedProcedure.query(async () => {
-    return await cache.getStats();
+    return { connected: await cache.healthCheck() };
   }),
 
   getCacheMetrics: protectedProcedure.query(async () => {
-    return cache.getMetrics();
+    return { message: "Metrics removed in simplified cache" };
   }),
 
   resetCacheMetrics: protectedProcedure.mutation(async () => {
-    cache.resetMetrics();
-    return { success: true };
+    return { message: "Metrics removed in simplified cache" };
   }),
 
   invalidateProjectCache: protectedProcedure
@@ -346,8 +333,30 @@ export const projectRouter = createTRPCRouter({
     .input(z.object({ jobId: z.string().optional() }))
     .query(async ({ input, ctx }) => {
       if (input.jobId) {
-        // Get specific job status
-        return await JobStatusService.getJobStatus(input.jobId);
+        // Get specific job status by jobId
+        const project = await ctx.db.project.findFirst({
+          where: {
+            jobId: input.jobId,
+            userToProjects: {
+              some: {
+                userId: ctx.user.userId!,
+              },
+            },
+          },
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            progress: true,
+            currentStep: true,
+            errorMessage: true,
+            jobId: true,
+            startedAt: true,
+            completedAt: true,
+            lastActivity: true,
+          },
+        });
+        return project;
       } else {
         // Get all job statuses for user's projects
         const userProjects = await ctx.db.project.findMany({
@@ -373,18 +382,11 @@ export const projectRouter = createTRPCRouter({
           },
         });
 
-        // Get job statuses for each project
-        const projectJobStatuses = await Promise.all(
-          userProjects.map(async (project) => {
-            const statuses = await JobStatusService.getProjectJobStatuses(
-              project.id,
-            );
-            return {
-              project,
-              jobStatuses: statuses,
-            };
-          }),
-        );
+        // Return projects with their job status
+        const projectJobStatuses = userProjects.map((project) => ({
+          project,
+          jobStatuses: project.jobId ? [project] : [], // Return project as job status if it has a jobId
+        }));
 
         return projectJobStatuses;
       }
@@ -399,19 +401,25 @@ export const projectRouter = createTRPCRouter({
           },
         },
         deletedAt: null,
+        status: "PROCESSING", // Only return projects that are currently processing
       },
-      select: { id: true, name: true },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        progress: true,
+        currentStep: true,
+        errorMessage: true,
+        jobId: true,
+        startedAt: true,
+        lastActivity: true,
+      },
     });
 
-    const allActiveJobs = await Promise.all(
-      userProjects.map(async (project) => {
-        const activeJobs = await JobStatusService.getActiveJobs(project.id);
-        return {
-          project,
-          activeJobs,
-        };
-      }),
-    );
+    const allActiveJobs = userProjects.map((project) => ({
+      project,
+      activeJobs: project.jobId ? [project] : [], // Return project as active job if it has a jobId
+    }));
 
     return allActiveJobs;
   }),
@@ -426,18 +434,23 @@ export const projectRouter = createTRPCRouter({
         },
         deletedAt: null,
       },
-      select: { id: true, name: true },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+      },
     });
 
-    const allJobStats = await Promise.all(
-      userProjects.map(async (project) => {
-        const stats = await JobStatusService.getJobStats(project.id);
-        return {
-          project,
-          stats,
-        };
-      }),
-    );
+    const allJobStats = userProjects.map((project) => ({
+      project,
+      stats: {
+        total: 1,
+        pending: project.status === "PENDING" ? 1 : 0,
+        processing: project.status === "PROCESSING" ? 1 : 0,
+        completed: project.status === "COMPLETED" ? 1 : 0,
+        failed: project.status === "FAILED" ? 1 : 0,
+      },
+    }));
 
     return allJobStats;
   }),
@@ -455,18 +468,33 @@ export const projectRouter = createTRPCRouter({
         githubToken: z.string().optional(),
       }),
     )
-    .mutation(async ({ input }) => {
-      // Mark existing job as failed
-      const activeJobs = await JobStatusService.getActiveJobs(input.projectId);
-      const existingJob = activeJobs.find(
-        (job) => job.jobType === input.jobType,
-      );
+    .mutation(async ({ input, ctx }) => {
+      // Check if project exists and user has access
+      const project = await ctx.db.project.findFirst({
+        where: {
+          id: input.projectId,
+          userToProjects: {
+            some: {
+              userId: ctx.user.userId!,
+            },
+          },
+        },
+      });
 
-      if (existingJob) {
-        await JobStatusService.markJobFailed(
-          existingJob.id,
-          "Job manually retried by user",
-        );
+      if (!project) {
+        throw new Error("Project not found or access denied");
+      }
+
+      // Mark existing job as failed by updating project status
+      if (project.status === "PROCESSING") {
+        await ctx.db.project.update({
+          where: { id: input.projectId },
+          data: {
+            status: "FAILED",
+            errorMessage: "Job manually retried by user",
+            completedAt: new Date(),
+          },
+        });
       }
 
       // Enqueue new job
@@ -476,7 +504,19 @@ export const projectRouter = createTRPCRouter({
             throw new Error("GitHub URL is required for repo indexing");
           }
           // Generate a new jobId for retry
-          const retryJobId = `repo-indexing-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          const retryJobId = `repo-indexing-${Date.now()}-${crypto.randomUUID()}`;
+
+          // Update project with new job tracking info
+          await ctx.db.project.update({
+            where: { id: input.projectId },
+            data: {
+              jobId: retryJobId,
+              status: "PROCESSING",
+              startedAt: new Date(),
+              lastActivity: new Date(),
+              errorMessage: null, // Clear previous error
+            },
+          });
 
           await JobManager.enqueueRepoIndexing({
             projectId: input.projectId,
@@ -503,13 +543,11 @@ export const projectRouter = createTRPCRouter({
 
   getSystemJobStats: protectedProcedure.query(async () => {
     // This would typically be restricted to admin users
-    const [repoStats, webhookStats, meetingStats, globalStats] =
-      await Promise.all([
-        JobManager.getQueueStats(QUEUE_NAMES.REPO_INDEXING),
-        JobManager.getQueueStats(QUEUE_NAMES.WEBHOOK_PROCESSING),
-        JobManager.getQueueStats(QUEUE_NAMES.MEETING_PROCESSING),
-        JobStatusService.getJobStats(),
-      ]);
+    const [repoStats, webhookStats, meetingStats] = await Promise.all([
+      JobManager.getQueueStats(QUEUE_NAMES.REPO_INDEXING),
+      JobManager.getQueueStats(QUEUE_NAMES.WEBHOOK_PROCESSING),
+      JobManager.getQueueStats(QUEUE_NAMES.MEETING_PROCESSING),
+    ]);
 
     return {
       queues: {
@@ -517,7 +555,18 @@ export const projectRouter = createTRPCRouter({
         webhookProcessing: webhookStats,
         meetingProcessing: meetingStats,
       },
-      global: globalStats,
+      globalStats: {
+        total:
+          repoStats.waiting +
+          repoStats.active +
+          webhookStats.waiting +
+          webhookStats.active +
+          meetingStats.waiting +
+          meetingStats.active,
+        waiting:
+          repoStats.waiting + webhookStats.waiting + meetingStats.waiting,
+        active: repoStats.active + webhookStats.active + meetingStats.active,
+      },
     };
   }),
 });

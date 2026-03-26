@@ -1,5 +1,6 @@
 import { Queue, Worker, QueueEvents } from "bullmq";
-import { getRedisConnectionOptions } from "./redis";
+import { getQueueRedisOptions, getWorkerRedisOptions } from "./redis";
+import "./queue-lifecycle"; // Initialize graceful shutdown handlers
 
 // Queue names
 export const QUEUE_NAMES = {
@@ -9,40 +10,80 @@ export const QUEUE_NAMES = {
   WEBHOOK_PROCESSING: "webhook-processing",
 } as const;
 
-// Create queue instances
-export const createQueue = (name: string) => {
-  return new Queue(name, {
-    connection: getRedisConnectionOptions(),
-    defaultJobOptions: {
-      removeOnComplete: 100, // Keep last 100 completed jobs
-      removeOnFail: 50, // Keep last 50 failed jobs
-      attempts: 3, // Retry failed jobs 3 times
-      backoff: {
-        type: "exponential",
-        delay: 2000, // Start with 2s delay, then exponential
-      },
-    },
-  });
+// Default job options for all queues
+const DEFAULT_JOB_OPTIONS = {
+  removeOnComplete: 100,
+  removeOnFail: 50,
+  attempts: 3,
+  backoff: { type: "exponential" as const, delay: 2000 },
+  delay: 0,
+  jobId: undefined, // Let BullMQ handle job IDs
 };
 
-// Create worker instances
+// Create queue instances with proper error handling
+export const createQueue = (name: string) => {
+  try {
+    const queue = new Queue(name, {
+      connection: getQueueRedisOptions(),
+      defaultJobOptions: DEFAULT_JOB_OPTIONS,
+    });
+
+    // Add error handler to prevent unhandled errors
+    queue.on("error", (err) => {
+      console.error(`Queue ${name} error:`, err);
+    });
+
+    return queue;
+  } catch (error) {
+    console.error(`Failed to create queue ${name}:`, error);
+    throw error; // Fail fast - don't return mock
+  }
+};
+
+// Create worker instances with proper configuration
 export const createWorker = (
   name: string,
   processor: (job: any) => Promise<any>,
   options?: any,
 ) => {
-  return new Worker(name, processor, {
-    connection: getRedisConnectionOptions(),
-    concurrency: options?.concurrency || 1,
-    ...options,
-  });
+  try {
+    const worker = new Worker(name, processor, {
+      connection: getWorkerRedisOptions(),
+      concurrency: options?.concurrency || 1,
+      maxStalledCount: 1,
+      stalledInterval: 30000,
+      ...options,
+    });
+
+    // Add error handler to prevent unhandled errors
+    worker.on("error", (err) => {
+      console.error(`Worker ${name} error:`, err);
+    });
+
+    return worker;
+  } catch (error) {
+    console.error(`Failed to create worker ${name}:`, error);
+    throw error; // Fail fast - don't return mock
+  }
 };
 
-// Create queue events listener
+// Create queue events listener with error handling
 export const createQueueEvents = (name: string) => {
-  return new QueueEvents(name, {
-    connection: getRedisConnectionOptions(),
-  });
+  try {
+    const events = new QueueEvents(name, {
+      connection: getQueueRedisOptions(),
+    });
+
+    // Add error handler to prevent unhandled errors
+    events.on("error", (err) => {
+      console.error(`QueueEvents ${name} error:`, err);
+    });
+
+    return events;
+  } catch (error) {
+    console.error(`Failed to create queue events ${name}:`, error);
+    throw error; // Fail fast - don't return mock
+  }
 };
 
 // Queue singleton instances
@@ -50,13 +91,16 @@ const queues = new Map<string, Queue>();
 const workers = new Map<string, Worker>();
 const queueEvents = new Map<string, QueueEvents>();
 
-// Get or create queue
+// Get or create queue - fail fast if Redis is unavailable
 export const getQueue = (name: string): Queue => {
   if (!queues.has(name)) {
-    queues.set(name, createQueue(name));
+    const queue = createQueue(name);
+    queues.set(name, queue);
   }
   return queues.get(name)!;
 };
+
+// Mock queue removed - fail fast instead to prevent silent data loss
 
 // Get or create worker
 export const getWorker = (
@@ -65,7 +109,8 @@ export const getWorker = (
   options?: any,
 ): Worker => {
   if (!workers.has(name)) {
-    workers.set(name, createWorker(name, processor, options));
+    const worker = createWorker(name, processor, options);
+    workers.set(name, worker);
   }
   return workers.get(name)!;
 };
@@ -73,7 +118,8 @@ export const getWorker = (
 // Get or create queue events
 export const getQueueEvents = (name: string): QueueEvents => {
   if (!queueEvents.has(name)) {
-    queueEvents.set(name, createQueueEvents(name));
+    const events = createQueueEvents(name);
+    queueEvents.set(name, events);
   }
   return queueEvents.get(name)!;
 };

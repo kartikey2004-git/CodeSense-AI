@@ -1,4 +1,4 @@
-import { generateText } from "ai";
+import { generateText, embed } from "ai";
 import { google } from "@ai-sdk/google";
 import { GoogleGenAI } from "@google/genai";
 import { Document } from "@langchain/core/documents";
@@ -14,11 +14,6 @@ export class AIService {
     if (!config.googleApiKey) {
       throw new Error("GOOGLE_GENERATIVE_AI_API_KEY is not set in env");
     }
-
-    console.log(
-      "API KEY:",
-      process.env.GOOGLE_GENERATIVE_AI_API_KEY ? "LOADED" : "MISSING",
-    );
   }
 
   async summariseDiff(diff: string): Promise<string> {
@@ -50,6 +45,7 @@ Formatting:
 Git diff input:
 ${diff}
 `,
+        maxRetries: 3,
       });
 
       if (!text?.trim()) {
@@ -58,8 +54,8 @@ ${diff}
 
       return text;
     } catch (error) {
-      console.log("Error in generating Summaries");
-      return "";
+      console.error("Diff summarization failed:", error);
+      throw error;
     }
   }
 
@@ -67,9 +63,9 @@ ${diff}
     console.log("getting summary for ", doc.metadata.source);
 
     // Check quota before making API call
-    if (!QuotaManager.canMakeRequest()) {
+    if (!(await QuotaManager.canMakeRequest())) {
       console.warn(
-        `    Gemini quota exceeded. Time until reset: ${QuotaManager.getTimeUntilReset()}`,
+        `Gemini quota exceeded. Time until reset: ${QuotaManager.getTimeUntilReset()}`,
       );
       return this.generateFallbackSummary(doc);
     }
@@ -87,22 +83,11 @@ ${diff}
       console.log("Prompt length:", code.length);
 
       // Record the request
-      QuotaManager.recordRequest();
+      await QuotaManager.recordRequest();
 
-      // Enhanced retry with exponential backoff and timeout
-      const maxRetries = 3;
-      let lastError: Error | null = null;
-
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-          // Add timeout to the API call
-          const { text } = await Promise.race([
-            generateText({
-              model: google(config.model),
-              messages: [
-                {
-                  role: "user",
-                  content: `You are a senior software engineer analyzing a source file.
+      const { text } = await generateText({
+        model: google(config.model),
+        prompt: `You are a senior software engineer analyzing a source file.
 
 Summarize the PURPOSE of the file and its main RESPONSIBILITIES.
 
@@ -131,63 +116,19 @@ ${doc.metadata.source}
 Source code:
 ${code}
 `,
-                },
-              ],
-            }),
-            new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error("Gemini API timeout")), 25000),
-            ),
-          ]);
+        maxRetries: 3,
+      });
 
-          console.log("Raw response received.");
-          console.log("Summary length:", text?.length);
+      console.log("Raw response received.");
+      console.log("Summary length:", text?.length);
 
-          if (!text?.trim()) {
-            throw new Error("Empty response from Gemini");
-          }
-
-          return text;
-        } catch (error) {
-          lastError =
-            error instanceof Error ? error : new Error("Unknown error");
-
-          // Enhanced rate limit handling
-          if (
-            lastError.message.includes("rate limit") ||
-            lastError.message.includes("quota") ||
-            lastError.message.includes("timeout")
-          ) {
-            const delayMs = Math.min(2000 * Math.pow(2, attempt - 1), 30000); // More conservative: 2s, 4s, 8s max 30s
-            console.warn(
-              ` Rate limit/timeout hit, retry ${attempt}/${maxRetries} in ${delayMs}ms:`,
-              lastError.message,
-            );
-            if (attempt < maxRetries) {
-              await new Promise((resolve) => setTimeout(resolve, delayMs));
-              continue;
-            }
-          }
-
-          // For other errors, shorter delay
-          if (attempt < maxRetries) {
-            const delayMs = 1000 * attempt; // 1s, 2s, 3s
-            console.warn(
-              `Summary retry ${attempt}/${maxRetries} in ${delayMs}ms:`,
-              lastError.message,
-            );
-            await new Promise((resolve) => setTimeout(resolve, delayMs));
-          }
-        }
+      if (!text?.trim()) {
+        throw new Error("Empty response from Gemini");
       }
 
-      // All retries failed - use fallback
-      console.error(
-        `  All ${maxRetries} attempts failed for ${doc.metadata.source}:`,
-        lastError?.message,
-      );
-      return this.generateFallbackSummary(doc);
+      return text;
     } catch (error) {
-      console.error("Unexpected error in summariseCode:", error);
+      console.error("Code summarization failed:", error);
       return this.generateFallbackSummary(doc);
     }
   }
@@ -246,8 +187,8 @@ ${code}
     return "generic";
   }
 
-  async generateEmbedding(summary: string): Promise<number[]> {
-    if (!summary || summary.trim().length < 3) {
+  async generateEmbedding(text: string): Promise<number[]> {
+    if (!text || text.trim().length < 3) {
       throw new Error("Text too short for embedding");
     }
 
@@ -256,35 +197,24 @@ ${code}
     });
 
     try {
-      // Add timeout to embedding generation
-      const response = await Promise.race([
-        ai.models.embedContent({
-          model: "gemini-embedding-001",
-          contents: summary,
-          config: {
-            outputDimensionality: 768,
-          },
-        }),
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () => reject(new Error("Embedding generation timeout")),
-            15000,
-          ),
-        ),
-      ]);
+      const response = await ai.models.embedContent({
+        model: "text-embedding-004",
+        contents: text,
+        config: {
+          outputDimensionality: 768,
+        },
+      });
 
       const embedding = response.embeddings?.[0]?.values;
 
-      console.log(response.embeddings?.length);
-
       if (!Array.isArray(embedding) || embedding.length === 0) {
-        throw new Error("Empty embedding returned from Gemini");
+        throw new Error("Empty embedding returned");
       }
 
       return embedding;
     } catch (error) {
       console.error("Embedding generation failed:", {
-        input: summary.slice(0, 100),
+        input: text.slice(0, 100),
         error,
       });
       throw error;

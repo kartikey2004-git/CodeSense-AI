@@ -7,7 +7,32 @@ import useRefetch from "@/hooks/use-refetch";
 import { api } from "@/trpc/react";
 import type { FormInput } from "@/types/types";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { toast } from "sonner";
+
+// Zod schema for form validation
+const formSchema = z.object({
+  projectName: z
+    .string()
+    .min(1, "Project name is required")
+    .max(50, "Project name must be less than 50 characters")
+    .regex(
+      /^[a-zA-Z0-9\s-_]+$/,
+      "Project name can only contain letters, numbers, spaces, hyphens, and underscores",
+    ),
+  repoUrl: z
+    .string()
+    .min(1, "Repository URL is required")
+    .url("Please enter a valid URL")
+    .regex(
+      /^https?:\/\/(www\.)?github\.com\/.+\/.*$/,
+      "Please enter a valid GitHub repository URL",
+    ),
+  githubToken: z.string().optional(),
+});
+
+type FormData = z.infer<typeof formSchema>;
 
 type Props = {
   isOpen: boolean;
@@ -15,39 +40,40 @@ type Props = {
 };
 
 export const CreateProjectModal = ({ isOpen, onClose }: Props) => {
-  // Here we react-hook-form for managing forms in our app : because of Performant, flexible and extensible forms with easy-to-use validation.
-
-  const { register, handleSubmit, reset } = useForm<FormInput>();
-
-  // this gives mutation function to call my backend function
+  // Using react-hook-form with Zod validation for type-safe form handling
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      projectName: "",
+      repoUrl: "",
+      githubToken: "",
+    },
+  });
 
   const createProject = api.project.createProject.useMutation();
-
   const refetch = useRefetch();
 
-  const onSubmit = (data: FormInput) => {
-    // console.log(JSON.stringfy(data,null,2));
-
-    // this data refers to input we get from our form : we get here type safed object with all the input , we pass this data to backend and create the project
-
-    createProject.mutate(
-      {
+  const onSubmit = async (data: FormData) => {
+    try {
+      await createProject.mutateAsync({
         githubUrl: data.repoUrl,
         name: data.projectName,
-        githubToken: data.githubToken,
-      },
-      {
-        onSuccess: () => {
-          toast.success("Project created successfully");
-          refetch();
-          reset();
-          onClose(); // close modal
-        },
-        onError: (err) => {
-          toast.error(err.message || "Failed to create project");
-        },
-      },
-    );
+        githubToken: data.githubToken || undefined,
+      });
+
+      toast.success("Project created successfully");
+      refetch();
+      reset();
+      onClose();
+    } catch (error) {
+      // Error is already handled by the mutation's onError callback
+      console.error("Failed to create project:", error);
+    }
   };
 
   return (
@@ -60,30 +86,87 @@ export const CreateProjectModal = ({ isOpen, onClose }: Props) => {
     >
       <div>
         <div className="w-full space-y-6 text-center md:text-left">
-          <form onSubmit={handleSubmit(onSubmit)} className="w-full space-y-4">
-            <Input
-              {...register("projectName", { required: true })}
-              placeholder="Project Name"
-            />
+          <form
+            onSubmit={handleSubmit(onSubmit)}
+            className="w-full space-y-4"
+            noValidate
+          >
+            <div className="space-y-2">
+              <Input
+                {...register("projectName")}
+                placeholder="Project Name"
+                aria-invalid={errors.projectName ? "true" : "false"}
+                aria-describedby={
+                  errors.projectName ? "projectName-error" : undefined
+                }
+              />
+              {errors.projectName && (
+                <p
+                  id="projectName-error"
+                  className="text-destructive text-sm"
+                  role="alert"
+                >
+                  {errors.projectName.message}
+                </p>
+              )}
+            </div>
 
-            <Input
-              {...register("repoUrl", { required: true })}
-              placeholder="GitHub Repository URL"
-              type="url"
-            />
+            <div className="space-y-2">
+              <Input
+                {...register("repoUrl")}
+                placeholder="GitHub Repository URL"
+                type="url"
+                aria-invalid={errors.repoUrl ? "true" : "false"}
+                aria-describedby={errors.repoUrl ? "repoUrl-error" : undefined}
+              />
+              {errors.repoUrl && (
+                <p
+                  id="repoUrl-error"
+                  className="text-destructive text-sm"
+                  role="alert"
+                >
+                  {errors.repoUrl.message}
+                </p>
+              )}
+            </div>
 
-            <Input
-              {...register("githubToken")}
-              placeholder="GitHub Token (optional)"
-            />
+            <div className="space-y-2">
+              <Input
+                {...register("githubToken")}
+                placeholder="GitHub Token (optional for private repos)"
+                type="password"
+                aria-describedby="githubToken-help"
+              />
+              <p
+                id="githubToken-help"
+                className="text-muted-foreground text-xs"
+              >
+                Optional: Only required for private repositories
+              </p>
+            </div>
 
             <Button
               type="submit"
-              disabled={createProject.isPending}
+              disabled={createProject.isPending || isSubmitting}
               className="w-full"
+              aria-describedby={
+                createProject.error ? "submit-error" : undefined
+              }
             >
-              {createProject.isPending ? "Creating..." : "Create Project"}
+              {createProject.isPending || isSubmitting
+                ? "Creating..."
+                : "Create Project"}
             </Button>
+
+            {createProject.error && (
+              <p
+                id="submit-error"
+                className="text-destructive text-center text-sm"
+                role="alert"
+              >
+                {createProject.error.message}
+              </p>
+            )}
           </form>
         </div>
       </div>

@@ -1,20 +1,24 @@
 // This middleware file is used to protect routes with Clerk authentication.
 
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import type { NextRequest } from "next/server";
+import type { NextRequest, NextResponse } from "next/server";
 
 // our public routes that don't require authentication which is sign-in page here
-
 const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/",
   "/sync-user(.*)",
   "/api/webhooks/github(.*)", // GitHub webhook endpoint
-  "/api/test(.*)", // Test endpoint
-  "/api/test-webhook(.*)", // Test webhook endpoint
-  "/api/test-commit-api(.*)", // Test commit API endpoint
-  "/api/debug-all(.*)", // Debug endpoint
-  "/api/debug-commits(.*)", // Debug commits endpoint
+  // Only expose test endpoints in development
+  ...(process.env.NODE_ENV === "development"
+    ? [
+        "/api/test(.*)", // Test endpoint
+        "/api/test-webhook(.*)", // Test webhook endpoint
+        "/api/test-commit-api(.*)", // Test commit API endpoint
+        "/api/debug-all(.*)", // Debug endpoint
+        "/api/debug-commits(.*)", // Debug commits endpoint
+      ]
+    : []),
 ]);
 
 // The clerkMiddleware helper enables authentication and is where you'll configure your protected routes.
@@ -23,9 +27,17 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   // Create a check to see if the user's current route is a public route.  If it is not a public route, use auth.protect() to protect the route.
 
   if (!isPublicRoute(req)) {
-    const authObject = await auth();
-    if (!authObject.userId) {
-      return authObject.redirectToSignIn();
+    try {
+      const authObject = await auth();
+      if (!authObject?.userId) {
+        return (
+          authObject?.redirectToSignIn() ||
+          new Response("Unauthorized", { status: 401 })
+        );
+      }
+    } catch (error) {
+      console.error("Authentication error:", error);
+      return new Response("Authentication failed", { status: 401 });
     }
   }
 });

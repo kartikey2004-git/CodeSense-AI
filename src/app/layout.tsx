@@ -8,12 +8,6 @@ import { TRPCReactProvider } from "@/trpc/react";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 
-// Redis warmup - runs during app startup
-import { warmupRedisConnection } from "@/lib/redis-warmup";
-
-// Initialize Redis connection
-warmupRedisConnection().catch(console.error);
-
 export const metadata: Metadata = {
   title: "CodeSense AI",
   description: "AI Github SAAS for devs",
@@ -32,12 +26,16 @@ interface RootLayoutProps {
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <ClerkProvider>
-      <html lang="en" suppressHydrationWarning className={inter.variable}>
+      <html
+        lang="en"
+        suppressHydrationWarning
+        className={inter.variable}
+      >
         <body className="bg-background text-foreground min-h-dvh antialiased">
           <ThemeProvider
             attribute="class"
-            defaultTheme="light"
-            enableSystem={false}
+            defaultTheme="system"
+            enableSystem={true}
             disableTransitionOnChange
           >
             <TRPCReactProvider>{children}</TRPCReactProvider>

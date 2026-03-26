@@ -3,13 +3,12 @@
 import { streamText } from "ai";
 import { createStreamableValue } from "@ai-sdk/rsc";
 import { generateEmbedding } from "@/lib/gemini";
-import { db } from "@/server/db";
 import { google } from "@ai-sdk/google";
 import { cache } from "@/lib/cache";
-import { mergeOverlappingChunks } from "@/lib/chunking";
 import { dedupeByFile } from "@/lib/deduplication";
 import type { SearchResult } from "@/types/types";
 import { config } from "@/config/google.config";
+import { vectorSimilaritySearch } from "@/lib/vector-operations";
 
 export async function askQuestion(question: string, projectId: string) {
   if (!question?.trim()) {
@@ -26,23 +25,18 @@ export async function askQuestion(question: string, projectId: string) {
     // Check cache first
 
     const cachedResponse = await cache.getQAResponse(projectId, question);
-    if (cachedResponse && !cache.isBypassed()) {
-      console.log("Cache hit for Q&A:", {
-        projectId,
-        question: question.substring(0, 50) + "...",
-      });
 
+    if (cachedResponse) {
       // Stream cached response
 
       (async () => {
         try {
           for (const char of cachedResponse.answer) {
             stream.update(char);
-            await new Promise((resolve) => setTimeout(resolve, 10)); // Small delay for streaming effect
+            await new Promise((resolve) => setTimeout(resolve, 10)); 
           }
           stream.done();
         } catch (err) {
-          console.error("Cached streaming error:", err);
           stream.update("\n\nError displaying cached response.");
           stream.done();
         }
@@ -53,11 +47,6 @@ export async function askQuestion(question: string, projectId: string) {
         filesReferences: cachedResponse.filesReferences || [],
       };
     }
-
-    console.log("Cache miss for Q&A:", {
-      projectId,
-      question: question.substring(0, 50) + "...",
-    });
 
     // Cache miss - proceed with normal flow
     const queryVector = await generateEmbedding(question);
@@ -75,30 +64,32 @@ export async function askQuestion(question: string, projectId: string) {
     let result: SearchResult[] = cachedSearchResults || [];
 
     if (!cachedSearchResults) {
-      const vectorQuery = `[${queryVector.join(",")}]`;
+      // Use new vector operations with proper error handling
+      
+      try {
+        const vectorResults = await vectorSimilaritySearch({
+          projectId,
+          queryEmbedding: queryVector,
+          limit: 20,
+          threshold: 0.5,
+        });
 
-      // NEW: Search across chunks with backward compatibility and deduplication at SQL level
-
-      result = (await db.$queryRaw`
-        SELECT DISTINCT ON ("fileName") 
-          "fileName",
-          "sourceCode",
-          "summary",
-          "chunkContent",
-          "chunkMetadata",
-          "isChunked",
-          "chunkIndex",
-          "totalChunks",
-          1 - ("summaryEmbedding" <=> ${vectorQuery}::vector) AS similarity
-        FROM "SourceCodeEmbedding"
-        WHERE
-          1 - ("summaryEmbedding" <=> ${vectorQuery}::vector) > 0.5
-          AND "projectId" = ${projectId}
-        ORDER BY 
-          "fileName", 
-          similarity DESC
-        LIMIT 20 -- Get more results since chunks are smaller
-      `) as SearchResult[];
+        // Convert to SearchResult format
+        result = vectorResults.map((r) => ({
+          fileName: r.fileName,
+          sourceCode: r.sourceCode,
+          summary: r.summary,
+          chunkContent: undefined, // No more chunking
+          chunkMetadata: undefined,
+          isChunked: false,
+          chunkIndex: undefined,
+          totalChunks: undefined,
+          similarity: r.similarity,
+        }));
+      } catch (error) {
+        console.error("Vector similarity search failed:", error);
+        result = [];
+      }
 
       // Cache search results
       await cache.setEmbeddingSearch(projectId, question, result);
@@ -108,84 +99,22 @@ export async function askQuestion(question: string, projectId: string) {
 
     const dedupedResults = dedupeByFile(result);
 
-    console.log(
-      `SQL DISTINCT ON + deduplication: ${result.length} results → ${dedupedResults.length} unique files`,
-    );
-
     let context = "";
 
-    // Handle chunked and file-level embeddings
-
+    // Simplified handling - no more chunking complexity
+    
     const chunks: Array<{ content: string; fileName: string; metadata?: any }> =
-      [];
+      dedupedResults.map((doc) => ({
+        content: doc.sourceCode,
+        fileName: doc.fileName,
+      }));
 
-    const processedFiles = new Set<string>();
-
-    for (const doc of dedupedResults ?? []) {
-      if (!doc?.sourceCode) continue;
-
-      if (doc.isChunked && doc.chunkContent) {
-        // For chunked embeddings, use the chunk content
-        chunks.push({
-          content: doc.chunkContent,
-          fileName: doc.fileName,
-          metadata: doc.chunkMetadata,
-        });
-        processedFiles.add(doc.fileName);
-      } else {
-        // For legacy file-level embeddings, use full source code
-
-        chunks.push({
-          content: doc.sourceCode,
-          fileName: doc.fileName,
-        });
-        processedFiles.add(doc.fileName);
-      }
-    }
-
-    // Group chunks by file and merge overlapping content
-
-    const chunksByFile = new Map<
-      string,
-      Array<{ content: string; metadata?: any }>
-    >();
+    // Simplified context building - no more chunking complexity
 
     for (const chunk of chunks) {
-      if (!chunksByFile.has(chunk.fileName)) {
-        chunksByFile.set(chunk.fileName, []);
-      }
-
-      chunksByFile.get(chunk.fileName)!.push({
-        content: chunk.content,
-        metadata: chunk.metadata,
-      });
-    }
-
-    // Build context with file grouping
-
-    for (const [fileName, fileChunks] of chunksByFile.entries()) {
-      const mergedContent = mergeOverlappingChunks(
-        fileChunks.map((chunk, index) => ({
-          content: chunk.content,
-          metadata: {
-            fileName,
-            chunkIndex: index,
-            totalChunks: fileChunks.length,
-            ...chunk.metadata,
-          },
-        })),
-      );
-
-      context += `source: ${fileName}\n`;
-      context += `code content:\n${mergedContent}\n`;
-
-      // Add chunk metadata if available
-
-      if (fileChunks[0]?.metadata) {
-        context += `chunk info: ${JSON.stringify(fileChunks[0].metadata, null, 2)}\n`;
-      }
-
-      context += `summary: ${dedupedResults.find((r) => r.fileName === fileName)?.summary || "No summary available"}\n\n`;
+      context += `source: ${chunk.fileName}\n`;
+      context += `code content:\n${chunk.content}\n`;
+      context += `summary: ${dedupedResults.find((r) => r.fileName === chunk.fileName)?.summary || "No summary available"}\n\n`;
     }
 
     const MAX_CONTEXT_CHARS = 12_000;
@@ -196,7 +125,7 @@ export async function askQuestion(question: string, projectId: string) {
     }
 
     console.log(
-      `Search Results: ${result.length} items → ${dedupedResults.length} unique files, ${chunks.length} chunks, ${processedFiles.size} files`,
+      `Search Results: ${result.length} items → ${dedupedResults.length} unique files, context: ${chunks.length} files`,
     );
 
     console.log(`Context size: ${context.length} characters`);

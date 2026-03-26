@@ -1,7 +1,12 @@
 // Job status tracking service for real-time progress updates
+// Uses Project model for job tracking instead of separate JobStatus model
 
 import { db } from "@/server/db";
 import { Job } from "bullmq";
+import {
+  validateProjectStatus,
+  sanitizeProjectStatus,
+} from "@/lib/db-validation";
 
 // Job status types
 export type JobStatusType = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
@@ -30,39 +35,33 @@ export interface CreateJobStatus {
 
 // Job status service class
 export class JobStatusService {
-  // Create a new job status record
+  // Create a new job status record (updates project)
   static async createJobStatus(data: CreateJobStatus) {
     try {
-      const jobStatus = await db.jobStatus.create({
+      // Update project with job tracking info instead of creating separate record
+      const project = await db.project.update({
+        where: { id: data.projectId },
         data: {
-          projectId: data.projectId,
           jobId: data.jobId,
-          queueName: data.queueName,
-          jobType: data.jobType,
-          status: "PENDING",
-          metadata: data.metadata,
+          status: sanitizeProjectStatus("PENDING"),
+          currentStep: "Queued",
+          progress: 0,
+          startedAt: new Date(),
+          lastActivity: new Date(),
         },
-      });
-
-      // Update project status
-      await this.updateProjectStatus(data.projectId, {
-        status: "PENDING",
-        jobId: data.jobId,
-        currentStep: "Queued",
-        progress: 0,
       });
 
       console.log(
         `Created job status: ${data.jobId} for project ${data.projectId}`,
       );
-      return jobStatus;
+      return project;
     } catch (error) {
       console.error("Failed to create job status:", error);
       throw error;
     }
   }
 
-  // Update job status
+  // Update job status (updates project)
   static async updateJobStatus(
     jobId: string,
     update: JobStatusUpdate,
@@ -71,59 +70,44 @@ export class JobStatusService {
     },
   ) {
     try {
-      // Use updateMany to avoid P2025 errors when record doesn't exist
-      const result = await db.jobStatus.updateMany({
+      // Update project directly since we're not using separate JobStatus model
+      const sanitizedStatus = sanitizeProjectStatus(update.status);
+
+      const result = await db.project.updateMany({
         where: { jobId: jobId },
         data: {
-          status: update.status,
-          progress: update.progress,
-          currentStep: update.currentStep,
-          message: update.message,
-          metadata: update.metadata
-            ? {
-                ...update.metadata,
-                updatedAt: new Date().toISOString(),
-              }
+          status: sanitizedStatus,
+          progress: update.progress
+            ? Math.max(0, Math.min(100, update.progress))
             : undefined,
+          currentStep: update.currentStep,
+          errorMessage: update.status === "FAILED" ? update.message : undefined,
           startedAt: update.status === "PROCESSING" ? new Date() : undefined,
           completedAt: update.status === "COMPLETED" ? new Date() : undefined,
-          failedAt: update.status === "FAILED" ? new Date() : undefined,
-          updatedAt: new Date(),
+          lastActivity: new Date(),
         },
       });
 
       if (result.count === 0) {
-        throw new Error(`Job status not found for jobId: ${jobId}`);
+        throw new Error(`Project with jobId ${jobId} not found`);
       }
 
-      // Get the updated record for project status update
-      const updatedJob = await db.jobStatus.findFirst({
+      // Get the updated project
+      const updatedProject = await db.project.findFirst({
         where: { jobId: jobId },
       });
-
-      if (options?.updateProject && updatedJob) {
-        await this.updateProjectStatus(updatedJob.projectId, {
-          status: update.status,
-          jobId,
-          currentStep: update.currentStep,
-          progress: update.progress || 0,
-          errorMessage: update.status === "FAILED" ? update.message : undefined,
-          startedAt: update.status === "PROCESSING" ? new Date() : undefined,
-          completedAt: update.status === "COMPLETED" ? new Date() : undefined,
-        });
-      }
 
       console.log(
         `Updated job status: ${jobId} -> ${update.status} (${update.progress || 0}%)`,
       );
-      return updatedJob;
+      return updatedProject;
     } catch (error) {
       console.error(`Failed to update job status ${jobId}:`, error);
       throw error;
     }
   }
 
-  // Update project status
+  // Update project status (internal method)
   static async updateProjectStatus(
     projectId: string,
     update: {
@@ -137,11 +121,12 @@ export class JobStatusService {
     },
   ) {
     try {
-      // Use updateMany with existence check to avoid P2025 errors
+      const sanitizedStatus = sanitizeProjectStatus(update.status);
+
       const result = await db.project.updateMany({
         where: { id: projectId },
         data: {
-          status: update.status,
+          status: sanitizedStatus,
           jobId: update.jobId,
           currentStep: update.currentStep,
           progress: update.progress || 0,
@@ -165,23 +150,24 @@ export class JobStatusService {
     }
   }
 
-  // Get job status by job ID
+  // Get job status by job ID (returns project)
   static async getJobStatus(jobId: string) {
     try {
       console.log(`Fetching job status for jobId: ${jobId}`);
-      const result = await db.jobStatus.findFirst({
-        where: { jobId: jobId }, // Use jobId field instead of id
-        include: {
-          project: {
-            select: {
-              id: true,
-              name: true,
-              status: true,
-              progress: true,
-              currentStep: true,
-              errorMessage: true,
-            },
-          },
+      const result = await db.project.findFirst({
+        where: { jobId: jobId },
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          progress: true,
+          currentStep: true,
+          errorMessage: true,
+          startedAt: true,
+          completedAt: true,
+          lastActivity: true,
+          createdAt: true,
+          updatedAt: true,
         },
       });
 
@@ -189,7 +175,7 @@ export class JobStatusService {
         found: !!result,
         status: result?.status,
         progress: result?.progress,
-        projectName: result?.project?.name,
+        projectName: result?.name,
       });
       return result;
     } catch (error) {
@@ -203,14 +189,30 @@ export class JobStatusService {
     }
   }
 
-  // Get all job statuses for a project
+  // Get all job statuses for a project (returns project history)
   static async getProjectJobStatuses(projectId: string) {
     try {
-      return await db.jobStatus.findMany({
-        where: { projectId },
-        orderBy: { createdAt: "desc" },
-        take: 50, // Limit to recent jobs
+      // Since we're using project model, return current project status
+      // For historical data, we'd need to implement a separate audit trail
+      const project = await db.project.findUnique({
+        where: { id: projectId },
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          progress: true,
+          currentStep: true,
+          errorMessage: true,
+          jobId: true,
+          startedAt: true,
+          completedAt: true,
+          lastActivity: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       });
+
+      return project ? [project] : [];
     } catch (error) {
       console.error(`Failed to get project job statuses ${projectId}:`, error);
       throw error;
@@ -220,14 +222,24 @@ export class JobStatusService {
   // Get active jobs for a project
   static async getActiveJobs(projectId: string) {
     try {
-      return await db.jobStatus.findMany({
+      return await db.project.findMany({
         where: {
-          projectId,
+          id: projectId,
           status: {
             in: ["PENDING", "PROCESSING"],
           },
+          jobId: { not: null },
         },
-        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          progress: true,
+          currentStep: true,
+          jobId: true,
+          startedAt: true,
+          lastActivity: true,
+        },
       });
     } catch (error) {
       console.error(`Failed to get active jobs ${projectId}:`, error);
@@ -303,19 +315,27 @@ export class JobStatusService {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysOld);
 
-      const deleted = await db.jobStatus.deleteMany({
+      // Since we're using project model, update old completed/failed projects
+      // to remove job tracking info rather than deleting
+      const updated = await db.project.updateMany({
         where: {
-          createdAt: {
+          lastActivity: {
             lt: cutoffDate,
           },
           status: {
             in: ["COMPLETED", "FAILED"],
           },
+          jobId: { not: null },
+        },
+        data: {
+          jobId: null,
+          currentStep: null,
+          errorMessage: null,
         },
       });
 
-      console.log(`Cleaned up ${deleted.count} old job statuses`);
-      return deleted.count;
+      console.log(`Cleaned up job tracking for ${updated.count} old projects`);
+      return updated.count;
     } catch (error) {
       console.error("Failed to cleanup old job statuses:", error);
       throw error;
@@ -325,13 +345,15 @@ export class JobStatusService {
   // Get job statistics
   static async getJobStats(projectId?: string) {
     try {
-      const where = projectId ? { projectId } : {};
+      const where = projectId
+        ? { id: projectId, jobId: { not: null } }
+        : { jobId: { not: null } };
 
       const [pending, processing, completed, failed] = await Promise.all([
-        db.jobStatus.count({ where: { ...where, status: "PENDING" } }),
-        db.jobStatus.count({ where: { ...where, status: "PROCESSING" } }),
-        db.jobStatus.count({ where: { ...where, status: "COMPLETED" } }),
-        db.jobStatus.count({ where: { ...where, status: "FAILED" } }),
+        db.project.count({ where: { ...where, status: "PENDING" } }),
+        db.project.count({ where: { ...where, status: "PROCESSING" } }),
+        db.project.count({ where: { ...where, status: "COMPLETED" } }),
+        db.project.count({ where: { ...where, status: "FAILED" } }),
       ]);
 
       return {
@@ -353,17 +375,21 @@ export class JobStatusService {
       const cutoffTime = new Date();
       cutoffTime.setMinutes(cutoffTime.getMinutes() - maxAgeMinutes);
 
-      const stuckJobs = await db.jobStatus.findMany({
+      const stuckJobs = await db.project.findMany({
         where: {
           status: "PROCESSING",
           startedAt: {
             lt: cutoffTime,
           },
+          jobId: { not: null },
         },
-        include: {
-          project: {
-            select: { id: true, name: true },
-          },
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          jobId: true,
+          startedAt: true,
+          lastActivity: true,
         },
       });
 
@@ -380,11 +406,13 @@ export class JobStatusService {
       const stuckJobs = await this.findStuckJobs(maxAgeMinutes);
 
       for (const job of stuckJobs) {
-        await this.markJobFailed(
-          job.jobId,
-          `Job stuck in processing for >${maxAgeMinutes} minutes`,
-          { updateProject: true },
-        );
+        if (job.jobId) {
+          await this.markJobFailed(
+            job.jobId,
+            `Job stuck in processing for >${maxAgeMinutes} minutes`,
+            { updateProject: true },
+          );
+        }
       }
 
       console.log(`Handled ${stuckJobs.length} stuck jobs`);

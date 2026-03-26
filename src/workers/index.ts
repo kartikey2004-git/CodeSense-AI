@@ -8,7 +8,6 @@ import {
   webhookProcessingProcessor,
 } from "../lib/jobs/processors";
 
-console.log("  Starting BullMQ workers...");
 
 // Create workers for each queue type
 const repoIndexingWorker = getWorker(
